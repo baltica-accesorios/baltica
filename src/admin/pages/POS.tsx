@@ -82,16 +82,15 @@ export function POS() {
 
   return (
     <>
-      <PageHeader title="Vender en mostrador" subtitle="Escaneá el código con el lector o la cámara, o buscá por nombre. La venta descuenta stock al instante, el mismo stock que ve la tienda online.">
-        <button className={btnGhost} onClick={() => setCam(true)}><Camera size={16} /> Escanear con cámara</button>
-      </PageHeader>
+      <PageHeader title="Vender en mostrador" subtitle="Escaneá el código con el lector o la cámara, o buscá por nombre. La venta descuenta stock al instante, el mismo stock que ve la tienda online." />
       {flash && <div className={`fixed top-4 right-4 z-40 px-4 py-2 rounded-lg shadow-lg text-sm text-white ${flash.ok ? 'bg-emerald-600' : 'bg-red-600'}`}>{flash.msg}</div>}
       <div className="grid lg:grid-cols-5 gap-4">
         <div className="lg:col-span-3 space-y-4">
           <Card>
             <div className="relative">
-              <Search size={18} className="absolute left-3 top-3 text-stone-400" />
-              <input ref={inputRef} className={input + ' pl-10 py-3 text-base'} placeholder="Escaneá un código o escribí el nombre / SKU..." value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && results[0]) addProduct(results[0].id, results[0].variants?.options[0]) }} />
+              <Search size={18} className="absolute left-3 top-3.5 text-stone-400" />
+              <input ref={inputRef} className={input + ' pl-10 pr-14 py-3 text-base'} placeholder="Escaneá con el lector o la cámara, o escribí el nombre..." value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && results[0]) addProduct(results[0].id, results[0].variants?.options[0]) }} />
+              <button type="button" onClick={() => setCam(true)} title="Escanear con la cámara" aria-label="Escanear con la cámara" className="absolute right-2 top-1.5 h-9 w-10 rounded-lg bg-stone-900 text-white flex items-center justify-center hover:bg-stone-700"><Camera size={18} /></button>
             </div>
             {q && (
               <ul className="mt-2 divide-y max-h-80 overflow-auto">
