@@ -75,7 +75,7 @@ export interface Purchase {
   lines: PurchaseLine[]
   total: number
   status: 'borrador' | 'confirmada'
-  source: 'foto' | 'manual'
+  source: 'foto' | 'manual' | 'repetida'
 }
 
 export interface LabelTemplate {
