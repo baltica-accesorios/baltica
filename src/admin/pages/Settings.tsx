@@ -1,5 +1,6 @@
 import { useStore } from '../../store/useStore'
 import { PageHeader, Card, Hint, input } from '../components/AdminLayout'
+import { Sparkles } from 'lucide-react'
 import { money, roundTo } from '../../lib/format'
 
 export function SettingsPage() {
@@ -20,6 +21,10 @@ export function SettingsPage() {
         <Card title="Vendedoras">
           <input className={input} value={settings.sellers.join(', ')} onChange={e => setSettings({ sellers: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })} />
           <div className="text-xs text-stone-500 mt-2">Separadas por coma. Cada venta de mostrador queda asociada a quien la cobró.</div>
+        </Card>
+        <Card title="Lectura de facturas con IA (opcional)">
+          <label className="text-sm flex items-start gap-2"><input type="checkbox" className="mt-1" checked={settings.aiInvoices} onChange={e => setSettings({ aiInvoices: e.target.checked })} /><span><span className="flex items-center gap-1 font-medium"><Sparkles size={14} className="text-amber-600" /> Leer facturas por foto con Claude</span><span className="text-stone-500 block mt-0.5">Usa la cuenta de Claude (Anthropic) de Báltica, no una del sistema. Se paga por uso a Anthropic: una factura cuesta centavos de dólar. Si está apagado, las facturas se cargan a mano y todo lo demás funciona igual.</span></span></label>
+          {settings.aiInvoices && <label className="text-sm block mt-3">API key de Anthropic<input className={input + ' mt-1 font-mono'} type="password" placeholder="sk-ant-..." value={settings.anthropicKey ?? ''} onChange={e => setSettings({ anthropicKey: e.target.value })} /><span className="text-xs text-stone-500">Se obtiene en console.anthropic.com. En producción se guarda cifrada en el servidor, nunca en el navegador.</span></label>}
         </Card>
         <Card title="Tienda">
           <label className="text-sm block">Nombre<input className={input + ' mt-1'} value={settings.storeName} onChange={e => setSettings({ storeName: e.target.value })} /></label>

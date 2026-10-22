@@ -48,7 +48,7 @@ src/
 | **Productos** | ABM con costo y código de barras | Mismos campos que Empretienda + costo, stock mínimo, SKU, EAN-13. Precio sugerido por regla de ganancia. Aumento masivo por %. |
 | **Stock** | Un solo stock para los dos canales | Alertas, cobertura en días, valorización a costo y a venta, historial de movimientos (quién/cuándo/por qué), conteo físico escaneando. |
 | **Escáner** | Consultar un producto al instante | Ficha con precio, stock y margen. Lector USB/Bluetooth (modo teclado) o cámara del celular. |
-| **Compras y facturas** | Carga por foto de factura | Lee renglones, matchea con el catálogo entendiendo abreviaturas, actualiza costo, sugiere precio con la regla de ganancia, suma stock. |
+| **Compras y facturas** | Carga de compras, con lectura por foto **opcional** | Lee renglones con Claude (modelo de visión), matchea con el catálogo entendiendo abreviaturas, actualiza costo, calcula el precio final con el % de ganancia de cada producto, suma stock. La IA usa la cuenta de Claude (Anthropic) del cliente, pago por uso; sin ella se carga a mano. |
 | **Etiquetas** | Códigos de barras con precio | Plantillas por formato (rollo 22×12, 50×25, hoja A4, sin precio), editables. Impresión desde el navegador. |
 | **Estadísticas** | Todas las métricas del negocio | Ventas, ganancia neta, margen, ticket, días con venta, por canal, por categoría, por día de semana, por hora, medios de pago, ranking de productos. Comparado contra el período anterior. |
 | **Migrar Empretienda** | Traer productos, imágenes, clientes y ventas | Asistente en 4 pasos a partir de los exports de Empretienda. Plan del día del cambio de dominio. |

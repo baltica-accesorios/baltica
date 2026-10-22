@@ -48,7 +48,7 @@ en el mismo proyecto como rutas API. Esto simplifica el deploy, el dominio, el H
 | Imágenes | Storage S3-compatible (Cloudflare R2: 10 GB gratis) | Las 163 imágenes actuales pesan < 100 MB. |
 | Pagos | Mercado Pago Checkout Pro (webhook) + transferencia | Es lo que ya usan. Sin comisión extra del sistema. |
 | Envíos | Correo Argentino / Andreani vía API o tabla de precios manual | Empretienda hoy calcula por CP; se replica. |
-| Lectura de facturas | Modelo de visión (Claude) con el catálogo como contexto | Pago por uso: una factura cuesta centavos. No es mensual. |
+| Lectura de facturas (**opcional**) | Claude (modelo de visión) con el catálogo como contexto, vía la **cuenta de Anthropic del cliente** | Se activa desde Configuración cargando su API key. Pago por uso a Anthropic: una factura cuesta centavos de dólar, sin abono. Si no se activa, las compras se cargan a mano con el mismo formulario. |
 | Cámara para barcode | `@zxing/browser` en el navegador | Lo que usa el prototipo. Sin app nativa, funciona en Safari/Chrome móvil con HTTPS. |
 
 ## 3. Modelo de datos (núcleo)
@@ -151,8 +151,8 @@ dominio en 5 minutos) y, si el volumen crece o se quiere independencia total, mo
 es el mismo porque es Next.js + Postgres estándar. El único gasto fijo real es el dominio (~$15k/año),
 que ya tienen.
 
-Costos variables únicos: lectura de facturas por foto (~$5 a $20 por factura según el modelo) y la
-comisión de Mercado Pago, que ya pagan hoy.
+Costos variables únicos: la lectura de facturas por foto, que es opcional y va contra la cuenta de
+Anthropic del cliente (~$5 a $20 por factura según el modelo), y la comisión de Mercado Pago, que ya pagan hoy.
 
 Backups: `pg_dump` diario a R2 (gratis) + export CSV mensual que la dueña se guarda. Las ventas y los
 movimientos de stock nunca se borran físicamente.

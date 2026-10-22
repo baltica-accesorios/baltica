@@ -10,9 +10,11 @@ export function Purchases() {
   const purchases = useStore(s => s.purchases)
   return (
     <>
-      <PageHeader title="Compras y facturas" subtitle="Sacale una foto a la factura del proveedor: el sistema lee los renglones, los matchea con tus productos, actualiza el costo y te sugiere el precio de venta.">
+      <PageHeader title="Compras y facturas" subtitle="Cargá lo que compraste a los proveedores: suma stock, actualiza el costo y calcula el precio final con el % de ganancia de cada producto. Con la lectura por foto (opcional) lo hace solo a partir de la factura.">
+        <Link to="/admin/compras/nueva" className={btnGhost}><Upload size={16} /> Cargar a mano</Link>
         <Link to="/admin/compras/nueva" className={btnPrimary}><Camera size={16} /> Cargar factura por foto</Link>
       </PageHeader>
+      <div className="mb-4"><Hint><b>La lectura por foto es opcional</b> y usa la cuenta de Claude (Anthropic) de Báltica: se activa en Configuración con su API key y se paga por uso a Anthropic (centavos por factura, sin abono). Sin eso, las facturas se cargan a mano con el mismo formulario.</Hint></div>
       <Card>
         <table className="w-full text-sm"><thead className="text-xs uppercase text-stone-500 text-left"><tr><th className="pb-2">Fecha</th><th className="pb-2">Proveedor</th><th className="pb-2">Factura</th><th className="pb-2">Renglones</th><th className="pb-2 text-right">Total</th><th className="pb-2">Origen</th><th className="pb-2">Estado</th></tr></thead>
           <tbody className="divide-y">{purchases.map(p => <tr key={p.id}><td className="py-2">{dateAR(p.date)}</td><td className="py-2 font-medium">{p.supplier}</td><td className="py-2 font-mono text-xs">{p.invoiceNumber}</td><td className="py-2">{p.lines.length} productos · {p.lines.reduce((a, l) => a + l.qty, 0)} u.</td><td className="py-2 text-right">{moneyShort(p.total)}</td><td className="py-2 text-xs">{p.source === 'foto' ? 'Foto' : 'Manual'}</td><td className="py-2"><span className={`text-[11px] px-2 py-0.5 rounded-full ${p.status === 'confirmada' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{p.status}</span></td></tr>)}</tbody></table>
@@ -83,7 +85,7 @@ export function NewPurchase() {
         </Card>
         <Card title="Cómo funciona el sistema de conocimiento">
           <ul className="text-sm text-stone-600 space-y-3">
-            <li className="flex gap-2"><Brain size={18} className="shrink-0 text-amber-600" /><span><b>Lee la foto</b> con un modelo de visión: renglones, cantidades, precios unitarios, IVA y total, aunque la factura esté manuscrita o torcida.</span></li>
+            <li className="flex gap-2"><Brain size={18} className="shrink-0 text-amber-600" /><span><b>Lee la foto</b> con Claude (modelo de visión): renglones, cantidades, precios unitarios, IVA y total, aunque la factura esté manuscrita o torcida. <b>Es opcional</b>: usa la cuenta de Claude de Báltica (API key en Configuración) y se paga por uso a Anthropic, unos centavos por factura. Sin IA, el mismo formulario se carga a mano.</span></li>
             <li className="flex gap-2"><Link2 size={18} className="shrink-0 text-amber-600" /><span><b>Matchea con tu catálogo</b> entendiendo abreviaturas del proveedor ("AQ" = acero quirúrgico, "DOR" = dorado). Cada vez que corregís un match, lo aprende para la próxima.</span></li>
             <li className="flex gap-2"><Sparkles size={18} className="shrink-0 text-amber-600" /><span><b>Calcula el precio final</b> con el % de ganancia de cada producto (cada uno puede tener el suyo: los anillos de acero no dejan lo mismo que la plata). Si nunca lo cargaste usa el general ({settings.defaultMarkup}%). Cambiás el % en el renglón y el precio se recalcula; el % queda guardado para la próxima factura.</span></li>
             <li className="flex gap-2"><Check size={18} className="shrink-0 text-amber-600" /><span><b>Al confirmar</b> suma el stock, guarda el nuevo costo y deja la factura archivada para buscarla después.</span></li>

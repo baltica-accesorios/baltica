@@ -42,13 +42,13 @@ const DEFAULT_TEMPLATES: LabelTemplate[] = [
   { id: 't4', name: 'Sin precio 30×20', widthMm: 30, heightMm: 20, cols: 3, showPrice: false, showName: true, showSku: true, description: 'Para mayoristas o cuando el precio cambia seguido.' },
 ]
 
-const DEFAULT_SETTINGS: Settings = { storeName: 'Báltica Accesorios', defaultMarkup: 120, roundTo: 100, lowStockThreshold: 2, sellers: ['Sol', 'Nati'] }
+const DEFAULT_SETTINGS: Settings = { storeName: 'Báltica Accesorios', defaultMarkup: 120, roundTo: 100, lowStockThreshold: 2, sellers: ['Sol', 'Nati'], aiInvoices: true, anthropicKey: '' }
 
 function initial() {
   const products = buildProducts()
   const { sales, movements, nextNumber } = buildHistory(products)
   // El stock semilla es el stock actual; los movimientos históricos son informativos
-  return { version: 5, products, sales, movements, purchases: buildPurchases(products), settings: DEFAULT_SETTINGS, labelTemplates: DEFAULT_TEMPLATES, nextNumber, cart: [] as CartLine[] }
+  return { version: 6, products, sales, movements, purchases: buildPurchases(products), settings: DEFAULT_SETTINGS, labelTemplates: DEFAULT_TEMPLATES, nextNumber, cart: [] as CartLine[] }
 }
 
 export const useStore = create<State>()(persist((set, get) => ({
@@ -120,8 +120,8 @@ export const useStore = create<State>()(persist((set, get) => ({
   newBarcode: () => { const n = get().products.length + 1 + Math.floor(Math.random() * 900); return ean13('779' + String(n).padStart(9, '0')) },
   reset: () => set({ ...initial() }),
 }), {
-  name: 'baltica-proto-v5',
-  version: 5,
+  name: 'baltica-proto-v6',
+  version: 6,
   migrate: () => initial() as unknown as State,
 }))
 

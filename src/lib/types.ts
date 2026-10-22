@@ -96,4 +96,6 @@ export interface Settings {
   roundTo: number           // redondeo de precio sugerido
   lowStockThreshold: number
   sellers: string[]
+  aiInvoices: boolean       // lectura de facturas por foto con IA (opcional, con la cuenta de Claude del cliente)
+  anthropicKey?: string
 }
