@@ -22,7 +22,7 @@ export function Dashboard() {
 
   return (
     <>
-      <PageHeader title={`Hola, Sol 👋`} subtitle={`${now.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}. Así va el negocio.`}>
+      <PageHeader title={`Hola, Sol`} subtitle={`${now.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}. Así va el negocio.`}>
         <Link to="/admin/pos" className={btnPrimary}><ShoppingCart size={16} /> Nueva venta en mostrador</Link>
         <Link to="/admin/escaner" className={btnGhost}><ScanBarcode size={16} /> Escanear</Link>
         <Link to="/admin/compras/nueva" className={btnGhost}><Camera size={16} /> Cargar factura</Link>

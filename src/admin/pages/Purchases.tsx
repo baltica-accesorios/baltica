@@ -15,7 +15,7 @@ export function Purchases() {
       </PageHeader>
       <Card>
         <table className="w-full text-sm"><thead className="text-xs uppercase text-stone-500 text-left"><tr><th className="pb-2">Fecha</th><th className="pb-2">Proveedor</th><th className="pb-2">Factura</th><th className="pb-2">Renglones</th><th className="pb-2 text-right">Total</th><th className="pb-2">Origen</th><th className="pb-2">Estado</th></tr></thead>
-          <tbody className="divide-y">{purchases.map(p => <tr key={p.id}><td className="py-2">{dateAR(p.date)}</td><td className="py-2 font-medium">{p.supplier}</td><td className="py-2 font-mono text-xs">{p.invoiceNumber}</td><td className="py-2">{p.lines.length} productos · {p.lines.reduce((a, l) => a + l.qty, 0)} u.</td><td className="py-2 text-right">{moneyShort(p.total)}</td><td className="py-2 text-xs">{p.source === 'foto' ? '📷 Foto' : '✍️ Manual'}</td><td className="py-2"><span className={`text-[11px] px-2 py-0.5 rounded-full ${p.status === 'confirmada' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{p.status}</span></td></tr>)}</tbody></table>
+          <tbody className="divide-y">{purchases.map(p => <tr key={p.id}><td className="py-2">{dateAR(p.date)}</td><td className="py-2 font-medium">{p.supplier}</td><td className="py-2 font-mono text-xs">{p.invoiceNumber}</td><td className="py-2">{p.lines.length} productos · {p.lines.reduce((a, l) => a + l.qty, 0)} u.</td><td className="py-2 text-right">{moneyShort(p.total)}</td><td className="py-2 text-xs">{p.source === 'foto' ? 'Foto' : 'Manual'}</td><td className="py-2"><span className={`text-[11px] px-2 py-0.5 rounded-full ${p.status === 'confirmada' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{p.status}</span></td></tr>)}</tbody></table>
       </Card>
     </>
   )
@@ -28,7 +28,7 @@ const FAKE_INVOICE = [
   { description: 'ANILLO ALMA AC QUIR 1.6-2.1', qty: 10, unitCost: 1450 },
   { description: 'ANILLO CORONA AQ', qty: 5, unitCost: 1500 },
   { description: 'CADENITA PATITA CORAZON AQ 45', qty: 4, unitCost: 2300 },
-  { description: 'ARITOS GOTA LISA PLATA 925', qty: 3, unitCost: 6200 },
+  { description: 'AROS GOTITAS MINI PLATA 925', qty: 3, unitCost: 6200 },
   { description: 'PERFUMERO MINI ROJO', qty: 12, unitCost: 1400 },
 ]
 
@@ -43,6 +43,7 @@ export function NewPurchase() {
   const [applyPrices, setApplyPrices] = useState(true)
   const [progress, setProgress] = useState(0)
 
+  const price = (cost: number, pct: number) => roundTo(cost * (1 + pct / 100), settings.roundTo)
   const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
   const match = (desc: string) => {
     const d = norm(desc).replace(/\b(ac|aq)\b/g, 'acero').replace(/\bquir\b/g, 'quirurgico').replace(/\bdor\b/g, 'dorado').replace(/\barg\b/g, 'argollitas')
@@ -55,7 +56,7 @@ export function NewPurchase() {
     setStep(1); setProgress(0)
     const t = setInterval(() => setProgress(p => { if (p >= 100) { clearInterval(t); return 100 } return p + 7 }), 90)
     setTimeout(() => {
-      setLines(FAKE_INVOICE.map(l => { const m = match(l.description); return { ...l, productId: m?.p.id, matched: !!m, suggestedPrice: roundTo(l.unitCost * (1 + settings.defaultMarkup / 100), settings.roundTo), barcode: m?.p.barcode } }))
+      setLines(FAKE_INVOICE.map(l => { const m = match(l.description); const pct = m?.p.markupPct ?? settings.defaultMarkup; return { ...l, productId: m?.p.id, matched: !!m, markupPct: pct, suggestedPrice: price(l.unitCost, pct), barcode: m?.p.barcode } }))
       setStep(2)
     }, 1600)
   }
@@ -78,13 +79,13 @@ export function NewPurchase() {
             {photo ? <img src={photo} className="max-h-72 mx-auto rounded" alt="" /> : <><Camera size={40} className="mx-auto text-stone-400" /><div className="mt-3 font-medium">Sacá una foto o subí la factura</div><div className="text-xs text-stone-500 mt-1">JPG, PNG o PDF. Desde el celular abre la cámara directo.</div></>}
           </label>
           <div className="grid grid-cols-2 gap-3 mt-4"><label className="text-sm">Proveedor<input className={input + ' mt-1'} value={supplier} onChange={e => setSupplier(e.target.value)} /></label><label className="text-sm">N° factura<input className={input + ' mt-1'} value={invoice} onChange={e => setInvoice(e.target.value)} /></label></div>
-          <div className="flex gap-2 mt-4"><button className={btnPrimary} onClick={analyze}><Sparkles size={16} /> {photo ? 'Leer factura' : 'Probar con una factura de ejemplo'}</button><button className={btnGhost} onClick={() => { setLines([{ description: '', qty: 1, unitCost: 0, matched: false, suggestedPrice: 0 }]); setStep(2) }}><Upload size={16} /> Cargar a mano</button></div>
+          <div className="flex gap-2 mt-4"><button className={btnPrimary} onClick={analyze}><Sparkles size={16} /> {photo ? 'Leer factura' : 'Probar con una factura de ejemplo'}</button><button className={btnGhost} onClick={() => { setLines([{ description: '', qty: 1, unitCost: 0, matched: false, markupPct: settings.defaultMarkup, suggestedPrice: 0 }]); setStep(2) }}><Upload size={16} /> Cargar a mano</button></div>
         </Card>
         <Card title="Cómo funciona el sistema de conocimiento">
           <ul className="text-sm text-stone-600 space-y-3">
             <li className="flex gap-2"><Brain size={18} className="shrink-0 text-amber-600" /><span><b>Lee la foto</b> con un modelo de visión: renglones, cantidades, precios unitarios, IVA y total, aunque la factura esté manuscrita o torcida.</span></li>
             <li className="flex gap-2"><Link2 size={18} className="shrink-0 text-amber-600" /><span><b>Matchea con tu catálogo</b> entendiendo abreviaturas del proveedor ("AQ" = acero quirúrgico, "DOR" = dorado). Cada vez que corregís un match, lo aprende para la próxima.</span></li>
-            <li className="flex gap-2"><Sparkles size={18} className="shrink-0 text-amber-600" /><span><b>Sugiere el precio de venta</b> con tu regla de ganancia (hoy: costo + {settings.defaultMarkup}%, redondeado a ${settings.roundTo}). Si el costo subió, te avisa cuánto deberías subir el precio.</span></li>
+            <li className="flex gap-2"><Sparkles size={18} className="shrink-0 text-amber-600" /><span><b>Calcula el precio final</b> con el % de ganancia de cada producto (cada uno puede tener el suyo: los anillos de acero no dejan lo mismo que la plata). Si nunca lo cargaste usa el general ({settings.defaultMarkup}%). Cambiás el % en el renglón y el precio se recalcula; el % queda guardado para la próxima factura.</span></li>
             <li className="flex gap-2"><Check size={18} className="shrink-0 text-amber-600" /><span><b>Al confirmar</b> suma el stock, guarda el nuevo costo y deja la factura archivada para buscarla después.</span></li>
           </ul>
         </Card>
@@ -94,21 +95,22 @@ export function NewPurchase() {
 
       {step === 2 && <div className="space-y-4">
         <Card title={`Factura ${invoice} · ${supplier}`}>
-          <Hint>Revisá cada renglón. Los que están en verde ya se vincularon a un producto tuyo. Los grises necesitan que elijas el producto o lo crees.</Hint>
+          <Hint>Revisá cada renglón. Los grises necesitan que elijas el producto o lo crees. El <b>% de ganancia</b> es el de cada producto (o el general si es nuevo): tocalo y el precio final se recalcula al instante.</Hint>
           <div className="overflow-auto mt-3"><table className="w-full text-sm">
-            <thead className="text-xs uppercase text-stone-500 text-left"><tr><th className="pb-2">Leído en la factura</th><th className="pb-2">Producto en el sistema</th><th className="pb-2 text-right">Cant.</th><th className="pb-2 text-right">Costo unit.</th><th className="pb-2 text-right">Costo anterior</th><th className="pb-2 text-right">Precio actual</th><th className="pb-2 text-right">Precio sugerido</th><th /></tr></thead>
+            <thead className="text-xs uppercase text-stone-500 text-left"><tr><th className="pb-2">Leído en la factura</th><th className="pb-2">Producto en el sistema</th><th className="pb-2 text-right">Cant.</th><th className="pb-2 text-right">Costo unit.</th><th className="pb-2 text-right">Costo anterior</th><th className="pb-2 text-right">Precio actual</th><th className="pb-2 text-right">% ganancia</th><th className="pb-2 text-right">Precio final</th><th /></tr></thead>
             <tbody className="divide-y">{lines.map((l, i) => { const p = products.find(p => p.id === l.productId); const up = p && l.unitCost > p.cost; return (
               <tr key={i} className={l.matched ? '' : 'bg-stone-50'}>
                 <td className="py-2 font-mono text-xs"><input className="bg-transparent w-full" value={l.description} onChange={e => setLines(ls => ls.map((x, k) => k === i ? { ...x, description: e.target.value } : x))} /></td>
-                <td className="py-2"><select className={input + ' py-1 text-xs'} value={l.productId ?? ''} onChange={e => { const p = products.find(p => p.id === e.target.value); setLines(ls => ls.map((x, k) => k === i ? { ...x, productId: p?.id, matched: !!p, barcode: p?.barcode } : x)) }}><option value="">— elegir / crear nuevo —</option>{products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></td>
+                <td className="py-2"><select className={input + ' py-1 text-xs'} value={l.productId ?? ''} onChange={e => { const p = products.find(p => p.id === e.target.value); const pct = p?.markupPct ?? settings.defaultMarkup; setLines(ls => ls.map((x, k) => k === i ? { ...x, productId: p?.id, matched: !!p, barcode: p?.barcode, markupPct: pct, suggestedPrice: price(x.unitCost, pct) } : x)) }}><option value="">— elegir / crear nuevo —</option>{products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></td>
                 <td className="py-2 text-right"><input className="w-14 text-right border rounded px-1" value={l.qty} onChange={e => setLines(ls => ls.map((x, k) => k === i ? { ...x, qty: Number(e.target.value) } : x))} /></td>
-                <td className="py-2 text-right"><input className="w-20 text-right border rounded px-1" value={l.unitCost} onChange={e => setLines(ls => ls.map((x, k) => k === i ? { ...x, unitCost: Number(e.target.value), suggestedPrice: roundTo(Number(e.target.value) * (1 + settings.defaultMarkup / 100), settings.roundTo) } : x))} /></td>
+                <td className="py-2 text-right"><input className="w-20 text-right border rounded px-1" value={l.unitCost} onChange={e => setLines(ls => ls.map((x, k) => k === i ? { ...x, unitCost: Number(e.target.value), suggestedPrice: price(Number(e.target.value), x.markupPct) } : x))} /></td>
                 <td className="py-2 text-right text-stone-500">{p ? moneyShort(p.cost) : '—'}{up && <span className="text-amber-600 text-xs ml-1">▲</span>}</td>
                 <td className="py-2 text-right text-stone-500">{p ? moneyShort(p.price) : '—'}</td>
-                <td className="py-2 text-right"><input className={`w-20 text-right border rounded px-1 ${p && l.suggestedPrice > p.price ? 'border-amber-400 bg-amber-50' : ''}`} value={l.suggestedPrice} onChange={e => setLines(ls => ls.map((x, k) => k === i ? { ...x, suggestedPrice: Number(e.target.value) } : x))} /></td>
+                <td className="py-2 text-right"><div className="inline-flex items-center gap-1"><input className="w-14 text-right border rounded px-1" value={l.markupPct} onChange={e => setLines(ls => ls.map((x, k) => k === i ? { ...x, markupPct: Number(e.target.value), suggestedPrice: price(x.unitCost, Number(e.target.value)) } : x))} /><span className="text-stone-400">%</span></div>{p && p.markupPct !== undefined && p.markupPct !== l.markupPct && <div className="text-[10px] text-stone-400">antes {p.markupPct}%</div>}</td>
+                <td className="py-2 text-right"><span className={`font-medium ${p && l.suggestedPrice > p.price ? 'text-amber-700' : ''}`}>{moneyShort(l.suggestedPrice)}</span>{p && l.suggestedPrice !== p.price && <div className="text-[10px] text-stone-400">{l.suggestedPrice > p.price ? '▲' : '▼'} {moneyShort(Math.abs(l.suggestedPrice - p.price))}</div>}</td>
                 <td className="py-2 text-right"><button className="text-stone-400 hover:text-red-600 text-xs" onClick={() => setLines(ls => ls.filter((_, k) => k !== i))}>✕</button></td>
               </tr>) })}</tbody></table></div>
-          <button className={btnGhost + ' mt-3 text-xs'} onClick={() => setLines(ls => [...ls, { description: '', qty: 1, unitCost: 0, matched: false, suggestedPrice: 0 }])}><Plus size={14} /> Agregar renglón</button>
+          <button className={btnGhost + ' mt-3 text-xs'} onClick={() => setLines(ls => [...ls, { description: '', qty: 1, unitCost: 0, matched: false, markupPct: settings.defaultMarkup, suggestedPrice: 0 }])}><Plus size={14} /> Agregar renglón</button>
         </Card>
         <Card>
           <div className="flex flex-wrap items-center justify-between gap-4">

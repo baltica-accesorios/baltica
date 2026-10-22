@@ -48,7 +48,7 @@ function initial() {
   const products = buildProducts()
   const { sales, movements, nextNumber } = buildHistory(products)
   // El stock semilla es el stock actual; los movimientos históricos son informativos
-  return { version: 4, products, sales, movements, purchases: buildPurchases(products), settings: DEFAULT_SETTINGS, labelTemplates: DEFAULT_TEMPLATES, nextNumber, cart: [] as CartLine[] }
+  return { version: 5, products, sales, movements, purchases: buildPurchases(products), settings: DEFAULT_SETTINGS, labelTemplates: DEFAULT_TEMPLATES, nextNumber, cart: [] as CartLine[] }
 }
 
 export const useStore = create<State>()(persist((set, get) => ({
@@ -111,7 +111,7 @@ export const useStore = create<State>()(persist((set, get) => ({
     for (const l of pu.lines) {
       if (!l.productId) continue
       movements.push({ id: uid(), productId: l.productId, delta: l.qty, reason: 'compra', ref: pu.id, createdAt: now, by: 'admin' })
-      products = products.map(p => p.id === l.productId ? { ...p, stock: p.stock + l.qty, cost: l.unitCost, price: applyPrices ? l.suggestedPrice : p.price } : p)
+      products = products.map(p => p.id === l.productId ? { ...p, stock: p.stock + l.qty, cost: l.unitCost, markupPct: l.markupPct, price: applyPrices ? l.suggestedPrice : p.price } : p)
     }
     return { products, movements, purchases: s.purchases.map(p => p.id === id ? { ...p, status: 'confirmada' } : p) }
   }),
@@ -120,8 +120,8 @@ export const useStore = create<State>()(persist((set, get) => ({
   newBarcode: () => { const n = get().products.length + 1 + Math.floor(Math.random() * 900); return ean13('779' + String(n).padStart(9, '0')) },
   reset: () => set({ ...initial() }),
 }), {
-  name: 'baltica-proto-v4',
-  version: 4,
+  name: 'baltica-proto-v5',
+  version: 5,
   migrate: () => initial() as unknown as State,
 }))
 
@@ -129,5 +129,6 @@ export const useStore = create<State>()(persist((set, get) => ({
 export const findProduct = (products: Product[], q: string) => {
   const s = q.trim().toLowerCase()
   if (!s) return []
-  return products.filter(p => p.barcode === s || p.sku.toLowerCase() === s || p.name.toLowerCase().includes(s) || p.sku.toLowerCase().includes(s)).slice(0, 12)
+  const score = (p: Product) => p.barcode === s || p.sku.toLowerCase() === s ? 0 : p.name.toLowerCase().startsWith(s) ? 1 : p.name.toLowerCase().includes(s) ? 2 : p.sku.toLowerCase().includes(s) ? 3 : 9
+  return products.map(p => [p, score(p)] as const).filter(([, sc]) => sc < 9).sort((a, b) => a[1] - b[1]).slice(0, 12).map(([p]) => p)
 }

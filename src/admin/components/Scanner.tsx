@@ -14,6 +14,9 @@ export function useKeyboardWedge(onScan: (code: string) => void, enabled = true)
     if (!enabled) return
     let buf = ''; let last = 0
     const h = (e: KeyboardEvent) => {
+      // Si el foco está en un campo de texto, ese campo procesa el Enter (evita duplicar la lectura)
+      const t = e.target as HTMLElement | null
+      if (t && ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName)) return
       const now = Date.now()
       if (now - last > 80) buf = ''
       last = now

@@ -8,7 +8,7 @@ function rng(seed: number) {
 }
 
 export function buildProducts(): Product[] {
-  return (seedProducts as unknown as Product[]).map(p => ({ ...p, active: true, minStock: 2, images: [p.image] }))
+  return (seedProducts as unknown as Product[]).map(p => ({ ...p, active: true, minStock: 2, images: [p.image], markupPct: Math.round((p.price / p.cost - 1) * 100 / 5) * 5 }))
 }
 
 const FIRST = ['Camila', 'Lucía', 'Valentina', 'Martina', 'Sofía', 'Julieta', 'Agustina', 'Florencia', 'Micaela', 'Carla', 'Rocío', 'Belén', 'Josefina', 'Paula', 'Romina']
@@ -70,7 +70,7 @@ export function buildHistory(products: Product[], days = 120) {
 export function buildPurchases(products: Product[]): Purchase[] {
   const byCat = (c: string) => products.filter(p => p.category === c)
   const mk = (id: string, supplier: string, date: string, invoiceNumber: string, ps: Product[], source: 'foto' | 'manual'): Purchase => {
-    const lines = ps.map(p => ({ productId: p.id, description: p.name, qty: 6, unitCost: p.cost, matched: true, suggestedPrice: p.price, barcode: p.barcode }))
+    const lines = ps.map(p => ({ productId: p.id, description: p.name, qty: 6, unitCost: p.cost, matched: true, markupPct: p.markupPct ?? 120, suggestedPrice: p.price, barcode: p.barcode }))
     return { id, supplier, date, invoiceNumber, lines, total: lines.reduce((a, l) => a + l.qty * l.unitCost, 0), status: 'confirmada', source }
   }
   return [

@@ -4,7 +4,7 @@ import { useStore } from '../../store/useStore'
 import { PageHeader, Card, Hint, Stat, btnGhost, btnPrimary, input } from '../components/AdminLayout'
 import { useKeyboardWedge, CameraScanner } from '../components/Scanner'
 import { moneyShort, dateAR, timeAR } from '../../lib/format'
-import { stockValue, coverageDays } from '../../lib/metrics'
+import { stockValue, coverageDays, reorderQty } from '../../lib/metrics'
 import type { MovementReason, Product } from '../../lib/types'
 
 const REASON: Record<MovementReason, string> = { venta_online: 'Venta online', venta_local: 'Venta mostrador', compra: 'Compra', ajuste: 'Ajuste manual', devolucion: 'Devolución', migracion: 'Migración', rotura: 'Rotura / pérdida' }
@@ -47,8 +47,8 @@ export function Stock() {
           <tbody className="divide-y">{low.map(p => { const d = coverageDays(p, sales); return (
             <tr key={p.id}><td className="py-2"><div className="flex items-center gap-3"><img src={p.image} className="w-9 h-9 rounded object-cover" alt="" /><div>{p.name}<div className="text-xs text-stone-400 font-mono">{p.sku}</div></div></div></td>
               <td className="py-2 text-right"><span className={`px-2 py-0.5 rounded-full text-xs ${p.stock === 0 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-800'}`}>{p.stock}</span></td><td className="py-2 text-right text-stone-500">{p.minStock ?? settings.lowStockThreshold}</td>
-              <td className="py-2 text-right text-xs">{d === Infinity ? <span className="text-stone-400">sin ventas 30d</span> : `${Math.ceil(d)} días`}</td>
-              <td className="py-2 text-right text-xs">{d === Infinity ? '—' : `${Math.max(0, Math.ceil(30 / d * p.stock) - p.stock + 3)} u. para 30 días`}</td>
+              <td className="py-2 text-right text-xs">{d === Infinity ? <span className="text-stone-400">sin ventas 30d</span> : p.stock === 0 ? <span className="text-red-600 font-medium">agotado, se vende</span> : `${Math.ceil(d)} días`}</td>
+              <td className="py-2 text-right text-xs">{d === Infinity ? '—' : <b>{reorderQty(p, sales)} u.</b>}{d !== Infinity && <span className="text-stone-400"> para 30 días</span>}</td>
               <td className="py-2 text-right"><button className={btnGhost + ' text-xs py-1'} onClick={() => setPicked(p)}><PackagePlus size={14} /> Ajustar</button></td></tr>) })}</tbody></table>
         {low.length === 0 && <p className="text-sm text-stone-500">Sin alertas.</p>}
       </Card>}

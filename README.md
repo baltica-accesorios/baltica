@@ -1,32 +1,60 @@
-# React + TypeScript + Vite
+# Báltica Accesorios · prototipo de tienda propia + panel de gestión
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Prototipo **frontend** (sin backend) para reemplazar la tienda que hoy corre en Empretienda
+([balticaaccesorios.com.ar](https://balticaaccesorios.com.ar)) por un deploy propio que mantiene
+**exactamente la misma tienda de cara al público** y agrega un **panel de administración** con todo lo
+que el negocio pidió: stock unificado online + mostrador, lector de códigos de barras, ventas presenciales,
+costos y ganancias, estadísticas, carga de facturas por foto, etiquetas y migración desde Empretienda.
 
-Currently, two official plugins are available:
+- Demo: **https://solsolettidev.github.io/baltica/** (tienda) · **https://solsolettidev.github.io/baltica/admin** (panel)
+- Análisis de arquitectura, concurrencia de stock y deploy: [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md)
+- Guía de qué mirar en la demo: [`docs/DEMO.md`](docs/DEMO.md)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+> Todo lo que se ve funciona de verdad en el navegador (los datos se guardan en `localStorage`).
+> Vender en mostrador descuenta stock que la tienda pública ve al instante, comprar online aparece en
+> el panel, cancelar una venta devuelve stock, etc. Lo único simulado es la lectura de la foto de
+> factura (en producción la hace un modelo de visión) y el asistente de migración.
 
-## React Compiler
+## Cómo correrlo
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+pnpm install
+pnpm dev        # http://localhost:5173
+pnpm build      # genera dist/ (GH_PAGES=1 pnpm build para la demo en GitHub Pages)
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+## Estructura
+
+```
+src/
+  storefront/      Tienda pública. Réplica de la plantilla "Eris" de Empretienda (Lato, negro/blanco, mismas URLs).
+    components/    Layout (header, menú, buscador, footer, WhatsApp), CartDrawer, ProductCard
+    pages/         Home, Category (listado + filtros + orden), Product, Checkout, páginas de info
+  admin/           Panel de gestión en /admin (mismo dominio).
+    components/    AdminLayout (sidebar), Scanner (lector USB + cámara + generador de código de barras)
+    pages/         Dashboard, POS, Sales, Products, Stock, Scanner, Purchases, Labels, Stats, Migration, Settings
+  store/           Estado global (zustand + persist). seed.ts genera 120 días de ventas realistas.
+  data/            Árbol de categorías real de la tienda, banners, logo.
+  lib/             Tipos de dominio, formato de moneda/fechas, EAN-13, métricas.
+  seed_products.json   163 productos reales (nombre, imagen, precio, categoría) con costo, stock y código generados.
+```
+
+## Qué hace cada módulo del panel
+
+| Módulo | Qué resuelve | Detalle |
+|---|---|---|
+| **Vender (mostrador)** | Carga de ventas presenciales en segundos | Escaneo con lector o cámara, búsqueda por nombre, variantes, descuento, medio de pago, vendedora, vuelto, ticket imprimible. Bloquea si no hay stock. |
+| **Ventas** | Online + mostrador en una lista | Estados (pendiente, pagada, enviada, entregada, cancelada), ganancia por venta, exportar CSV. Cancelar devuelve stock. |
+| **Productos** | ABM con costo y código de barras | Mismos campos que Empretienda + costo, stock mínimo, SKU, EAN-13. Precio sugerido por regla de ganancia. Aumento masivo por %. |
+| **Stock** | Un solo stock para los dos canales | Alertas, cobertura en días, valorización a costo y a venta, historial de movimientos (quién/cuándo/por qué), conteo físico escaneando. |
+| **Escáner** | Consultar un producto al instante | Ficha con precio, stock y margen. Lector USB/Bluetooth (modo teclado) o cámara del celular. |
+| **Compras y facturas** | Carga por foto de factura | Lee renglones, matchea con el catálogo entendiendo abreviaturas, actualiza costo, sugiere precio con la regla de ganancia, suma stock. |
+| **Etiquetas** | Códigos de barras con precio | Plantillas por formato (rollo 22×12, 50×25, hoja A4, sin precio), editables. Impresión desde el navegador. |
+| **Estadísticas** | Todas las métricas del negocio | Ventas, ganancia neta, margen, ticket, días con venta, por canal, por categoría, por día de semana, por hora, medios de pago, ranking de productos. Comparado contra el período anterior. |
+| **Migrar Empretienda** | Traer productos, imágenes, clientes y ventas | Asistente en 4 pasos a partir de los exports de Empretienda. Plan del día del cambio de dominio. |
+| **Configuración** | Reglas del negocio | % de ganancia por defecto, redondeo, umbral de stock bajo, vendedoras. |
+
+## Stack
+
+React 19 + TypeScript + Vite · react-router · zustand · Tailwind 4 (sólo en el panel; la tienda usa CSS propio que
+replica la plantilla) · recharts · @zxing/browser (cámara) · jsbarcode (etiquetas).

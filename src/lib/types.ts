@@ -15,6 +15,7 @@ export interface Product {
   cost: number           // costo de reposición (último costo de compra)
   stock: number
   minStock?: number
+  markupPct?: number     // % de ganancia propio del producto (si no, usa el de configuración)
   sku: string
   barcode: string        // EAN-13 generado por el sistema (o el del proveedor)
   image: string
@@ -65,7 +66,7 @@ export interface StockMovement {
   by: string
 }
 
-export interface PurchaseLine { productId?: string; description: string; qty: number; unitCost: number; matched: boolean; suggestedPrice: number; barcode?: string }
+export interface PurchaseLine { productId?: string; description: string; qty: number; unitCost: number; matched: boolean; markupPct: number; suggestedPrice: number; barcode?: string }
 export interface Purchase {
   id: string
   supplier: string

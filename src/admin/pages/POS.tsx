@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Camera, Search, Trash2, Check, Banknote, Landmark, CreditCard, QrCode, Percent, UserRound, Printer, RotateCcw } from 'lucide-react'
+import { Camera, Search, Trash2, Check, Banknote, Landmark, CreditCard, QrCode, Percent, UserRound, Printer, RotateCcw, ShoppingBag } from 'lucide-react'
 import { useStore, findProduct } from '../../store/useStore'
 import { useKeyboardWedge, CameraScanner } from '../components/Scanner'
 import { PageHeader, Card, Hint, btnPrimary, btnGhost, input } from '../components/AdminLayout'
@@ -47,7 +47,7 @@ export function POS() {
   useKeyboardWedge(onScan, !done)
 
   useEffect(() => { if (flash) { const t = setTimeout(() => setFlash(null), 2200); return () => clearTimeout(t) } }, [flash])
-  useEffect(() => { inputRef.current?.focus() }, [done])
+  useEffect(() => { const t = setTimeout(() => inputRef.current?.focus(), 300); return () => clearTimeout(t) }, [done])
 
   const results = useMemo(() => findProduct(products, q), [products, q])
   const subtotal = lines.reduce((a, l) => a + l.qty * l.unitPrice, 0)
@@ -107,7 +107,7 @@ export function POS() {
             {!q && <div className="mt-3 flex flex-wrap gap-2 text-xs text-stone-500"><span>Accesos rápidos:</span>{products.slice(0, 6).map(p => <button key={p.id} onClick={() => addProduct(p.id, p.variants?.options[0])} className="px-2 py-1 bg-stone-100 rounded hover:bg-stone-200">{p.name.split(' (')[0]}</button>)}</div>}
           </Card>
           <Card>
-            {lines.length === 0 ? <div className="text-center py-10 text-stone-400"><div className="text-4xl mb-2">🛍️</div>Todavía no agregaste productos.<div className="text-xs mt-1">Probá escanear o escribir "anillo".</div></div> : (
+            {lines.length === 0 ? <div className="text-center py-10 text-stone-400"><ShoppingBag size={40} className="mx-auto mb-2 text-stone-300" />Todavía no agregaste productos.<div className="text-xs mt-1">Probá escanear o escribir "anillo".</div></div> : (
               <table className="w-full text-sm">
                 <thead className="text-xs text-stone-500 uppercase"><tr><th className="text-left pb-2">Producto</th><th className="pb-2">Cant.</th><th className="text-right pb-2">Precio</th><th className="text-right pb-2">Total</th><th /></tr></thead>
                 <tbody className="divide-y">{lines.map((l, i) => (

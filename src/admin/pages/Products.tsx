@@ -26,7 +26,7 @@ export function Products() {
         </div>
         <div className="overflow-auto">
           <table className="w-full text-sm">
-            <thead className="text-xs uppercase text-stone-500 text-left"><tr><th className="pb-2"><input type="checkbox" onChange={e => setSel(e.target.checked ? list.map(p => p.id) : [])} /></th><th className="pb-2">Producto</th><th className="pb-2">Categoría</th><th className="pb-2">SKU / Código</th><th className="pb-2 text-right">Costo</th><th className="pb-2 text-right">Precio</th><th className="pb-2 text-right">Margen</th><th className="pb-2 text-right">Stock</th><th /></tr></thead>
+            <thead className="text-xs uppercase text-stone-500 text-left"><tr><th className="pb-2"><input type="checkbox" onChange={e => setSel(e.target.checked ? list.map(p => p.id) : [])} /></th><th className="pb-2">Producto</th><th className="pb-2">Categoría</th><th className="pb-2">SKU / Código</th><th className="pb-2 pl-3 text-right">Costo</th><th className="pb-2 pl-3 text-right">Precio</th><th className="pb-2 pl-3 text-right">Margen</th><th className="pb-2 pl-3 text-right">Stock</th><th /></tr></thead>
             <tbody className="divide-y">{list.map(p => (
               <tr key={p.id} className="hover:bg-stone-50">
                 <td className="py-2"><input type="checkbox" checked={sel.includes(p.id)} onChange={() => toggle(p.id)} /></td>
@@ -52,7 +52,8 @@ export function ProductForm() {
   const existing = products.find(p => p.id === id)
   const [p, setP] = useState<Product>(existing ?? { id: 'p' + uid(), slug: '', name: '', category: 'anillos', subcategory: null, material: 'acero quirúrgico', price: 0, cost: 0, stock: 0, minStock: 2, sku: '', barcode: newBarcode(), image: 'https://d22fxaf9t8d39k.cloudfront.net/0635a9be0461c18f682aa387ba6dc4b2fed6660b2427268cd51ef02f543754d4225104.jpg', variants: null, createdAt: new Date().toISOString().slice(0, 10), active: true })
   const set = (patch: Partial<Product>) => setP(x => ({ ...x, ...patch }))
-  const suggested = roundTo(p.cost * (1 + settings.defaultMarkup / 100), settings.roundTo)
+  const markup = p.markupPct ?? settings.defaultMarkup
+  const suggested = roundTo(p.cost * (1 + markup / 100), settings.roundTo)
   const margin = p.price ? (p.price - p.cost) / p.price : 0
   const cat = CATEGORIES.find(c => c.slug === p.category)
   const save = () => {
@@ -77,13 +78,14 @@ export function ProductForm() {
             </div>
           </Card>
           <Card title="Costo y precio">
-            <div className="grid md:grid-cols-3 gap-3">
+            <div className="grid md:grid-cols-4 gap-3">
               <label className="text-sm">Costo (lo que pagás)<input className={input + ' mt-1'} type="number" value={p.cost} onChange={e => set({ cost: Number(e.target.value) })} /></label>
+              <label className="text-sm">% ganancia de este producto<input className={input + ' mt-1'} type="number" value={p.markupPct ?? settings.defaultMarkup} onChange={e => set({ markupPct: Number(e.target.value), price: roundTo(p.cost * (1 + Number(e.target.value) / 100), settings.roundTo) })} /></label>
               <label className="text-sm">Precio de venta<input className={input + ' mt-1'} type="number" value={p.price} onChange={e => set({ price: Number(e.target.value) })} /></label>
               <label className="text-sm">Precio oferta (opcional)<input className={input + ' mt-1'} type="number" value={p.offerPrice ?? ''} onChange={e => set({ offerPrice: e.target.value ? Number(e.target.value) : null })} /></label>
             </div>
             <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
-              <button className={btnGhost + ' text-xs'} onClick={() => set({ price: suggested })}><Wand2 size={14} /> Sugerir precio: {money(suggested)} (costo + {settings.defaultMarkup}%)</button>
+              <button className={btnGhost + ' text-xs'} onClick={() => set({ price: suggested })}><Wand2 size={14} /> Recalcular precio: {money(suggested)} (costo + {markup}%)</button>
               <span className={`text-xs ${margin < 0.35 ? 'text-amber-600' : 'text-emerald-700'}`}>Margen: {pct(margin)} · ganás {money(p.price - p.cost)} por unidad</span>
             </div>
           </Card>

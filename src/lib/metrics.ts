@@ -55,9 +55,19 @@ export function stockValue(products: Product[]) {
   return { cost: products.reduce((a, p) => a + p.stock * p.cost, 0), retail: products.reduce((a, p) => a + p.stock * p.price, 0), units: products.reduce((a, p) => a + p.stock, 0) }
 }
 // Días de cobertura: stock actual / ventas promedio diarias de los últimos 30 días
-export function coverageDays(p: Product, sales: Sale[]) {
+export function dailyRate(p: Product, sales: Sale[]) {
   const since = Date.now() - 30 * 86400000
   const sold = sales.filter(s => valid(s) && new Date(s.createdAt).getTime() > since).reduce((a, s) => a + s.items.filter(i => i.productId === p.id).reduce((b, i) => b + i.qty, 0), 0)
-  if (!sold) return Infinity
-  return p.stock / (sold / 30)
+  return sold / 30
+}
+export function coverageDays(p: Product, sales: Sale[]) {
+  const rate = dailyRate(p, sales)
+  if (!rate) return Infinity
+  return p.stock / rate
+}
+// Cuántas unidades comprar para cubrir `days` días con un colchón de seguridad
+export function reorderQty(p: Product, sales: Sale[], days = 30) {
+  const rate = dailyRate(p, sales)
+  if (!rate) return 0
+  return Math.max(0, Math.ceil(rate * days) + 2 - p.stock)
 }
