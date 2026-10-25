@@ -7,7 +7,7 @@ import { useAdmin } from '../context'
 import { bulkOffer, bulkPriceUpdate, deleteProduct, newBarcode, saveProduct } from '../actions'
 import { offerActive, offerPct } from '@/lib/pricing'
 import { ImageUpload } from '../components/ImageUpload'
-import { PageHeader, Card, Hint, btnGhost, btnPrimary, input } from '../components/AdminLayout'
+import { PageHeader, Card, btnGhost, btnPrimary, input } from '../components/AdminLayout'
 import { Barcode } from '../components/Scanner'
 import { CATEGORIES, categoryName } from '@/data/categories'
 import { money, moneyShort, pct, roundTo, uid } from '@/lib/format'
@@ -139,21 +139,32 @@ export function ProductForm({ existing, initialBarcode }: { existing?: Product |
             </div>
           </Card>
           <Card title="Stock e identificación">
-            <div className="grid md:grid-cols-4 gap-3">
-              {opts.length ? <div className="text-sm">Stock total<div className={input + ' mt-1 bg-stone-50 text-stone-500'}>{opts.reduce((a, o) => a + (p.variantStock?.[o] ?? 0), 0)}</div></div>
-                : <label className="text-sm">Stock actual<input className={input + ' mt-1'} type="number" value={p.stock} onChange={e => set({ stock: Number(e.target.value) })} /></label>}
-              <label className="text-sm">Stock mínimo (alerta)<input className={input + ' mt-1'} type="number" value={p.minStock ?? 0} onChange={e => set({ minStock: Number(e.target.value) })} /></label>
-              <label className="text-sm">SKU<input className={input + ' mt-1'} value={p.sku} onChange={e => set({ sku: e.target.value })} placeholder="auto" /></label>
-              <label className="text-sm">Código de barras<div className="flex gap-1 mt-1"><input className={input + ' font-mono'} value={p.barcode} onChange={e => set({ barcode: e.target.value })} /><button className={btnGhost + ' px-2'} title="Generar EAN-13 nuevo" onClick={async () => set({ barcode: await newBarcode() })}><Sparkles size={14} /></button></div></label>
+            <div className="grid md:grid-cols-2 gap-6">
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-wide text-stone-500 mb-2">Stock</div>
+                {opts.length ? <>
+                  <div className="text-sm mb-1">Unidades por {p.variants?.attr?.toLowerCase() || 'opción'}</div>
+                  <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-3 lg:grid-cols-5 gap-2">{opts.map(o => (
+                    <label key={o} className="text-xs text-stone-600 text-center">{o}<input className={input + ' mt-0.5 text-center px-1'} type="number" min={0} inputMode="numeric" value={p.variantStock?.[o] ?? 0} onChange={e => set({ variantStock: { ...Object.fromEntries(opts.map(k => [k, p.variantStock?.[k] ?? 0])), [o]: Math.max(0, Number(e.target.value) || 0) } })} /></label>
+                  ))}</div>
+                  <div className="text-sm mt-2">Total: <b>{opts.reduce((a, o) => a + (p.variantStock?.[o] ?? 0), 0)} unidades</b></div>
+                  <p className="text-xs text-stone-500 mt-0.5">Cada talle tiene su propio stock: la tienda no deja comprar un talle agotado aunque haya de otros.</p>
+                </> : <label className="text-sm block">Unidades en stock<input className={input.replace('w-full ', '') + ' mt-1 w-32'} type="number" min={0} inputMode="numeric" value={p.stock} onChange={e => set({ stock: Number(e.target.value) })} /></label>}
+                <div className="mt-4 rounded-lg bg-stone-50 border px-3 py-2.5">
+                  <div className="text-sm font-medium">Aviso de stock bajo</div>
+                  <label className="text-sm flex items-center gap-2 mt-1">Cuando queden
+                    <input className={input.replace('w-full ', '') + ' w-16 text-center px-1 bg-white'} type="number" min={0} inputMode="numeric" value={p.minStock ?? 0} onChange={e => set({ minStock: Number(e.target.value) })} aria-label="Stock mínimo" />
+                    o menos</label>
+                  <p className="text-xs text-stone-500 mt-1">Aparece en las alertas de Stock y en el inicio del panel para que sepas qué reponer.</p>
+                </div>
+              </div>
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-wide text-stone-500 mb-2">Identificación</div>
+                <label className="text-sm block">SKU (código interno)<input className={input + ' mt-1'} value={p.sku} onChange={e => set({ sku: e.target.value })} placeholder="Se genera solo si lo dejás vacío" /></label>
+                <label className="text-sm block mt-3">Código de barras<div className="flex gap-1 mt-1"><input className={input + ' font-mono'} value={p.barcode} onChange={e => set({ barcode: e.target.value })} inputMode="numeric" /><button className={btnGhost + ' px-3 shrink-0'} title="Generar un código nuevo" onClick={async () => set({ barcode: await newBarcode() })}><Sparkles size={14} /> Nuevo</button></div></label>
+                <p className="text-xs text-stone-500 mt-1">Si el producto ya trae código del proveedor, escanealo acá y se usa ese. Si no, el sistema genera uno propio y lo imprimís desde Etiquetas.</p>
+              </div>
             </div>
-            {opts.length > 0 && <div className="mt-3">
-              <div className="text-sm font-medium mb-1">Stock por {p.variants?.attr?.toLowerCase() || 'opción'}</div>
-              <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">{opts.map(o => (
-                <label key={o} className="text-xs text-stone-600">{o}<input className={input + ' mt-0.5 text-center'} type="number" min={0} value={p.variantStock?.[o] ?? 0} onChange={e => set({ variantStock: { ...Object.fromEntries(opts.map(k => [k, p.variantStock?.[k] ?? 0])), [o]: Math.max(0, Number(e.target.value) || 0) } })} /></label>
-              ))}</div>
-              <p className="text-xs text-stone-500 mt-1">Cada talle tiene su propio stock: la tienda no deja comprar un talle agotado aunque haya de otros.</p>
-            </div>}
-            <Hint>Si el producto ya trae código de barras del proveedor, escanealo acá y se usa ese. Si no, el sistema genera uno propio (prefijo 779 = Argentina) y lo imprimís desde Etiquetas.</Hint>
           </Card>
           {err && <p className="text-sm text-red-600">{err}</p>}
           <div className="flex gap-2"><button className={btnPrimary} onClick={save} disabled={!p.name || !p.price || saving}>{saving ? 'Guardando…' : 'Guardar producto'}</button><Link href="/admin/productos" className={btnGhost}>Cancelar</Link></div>
