@@ -1,19 +1,20 @@
-# Guía de la demo (5 minutos)
+# Recorrido del sistema (5 minutos)
 
-1. **Tienda pública** → abrí la home. Es la misma tienda que hoy: banner, grilla de categorías, "Ingresos",
-   franja de envíos/pagos/showroom, footer. Entrá a *Anillos → acero quirúrgico*, filtrá por diámetro,
-   abrí un producto, agregá al carrito y hacé el checkout. Queda registrada como venta online **pendiente**.
-2. **Panel → Inicio**: ventas de hoy, últimos 30 días comparados con los 30 anteriores, ganancia,
-   lo que se está por acabar según el ritmo de venta, últimas ventas (fijate que aparece la que hiciste online).
-3. **Vender (mostrador)**: escribí "anillo" y Enter, o tocá un acceso rápido. Probá agregar más unidades de las
-   que hay. Elegí efectivo, poné con cuánto paga y mirá el vuelto. Cobrá. Imprimí el ticket.
-   Volvé a la tienda pública: el stock del producto bajó.
-4. **Escáner**: tocá uno de los códigos de ejemplo (simula el lector) o abrí la cámara desde el celular.
-5. **Stock**: alertas con "cobertura en días" y cuánto reponer, movimientos con trazabilidad, conteo físico.
-6. **Compras y facturas → Cargar factura por foto**: "Probar con una factura de ejemplo". Mirá cómo matchea
-   abreviaturas del proveedor, marca costos que subieron y sugiere precios. Confirmá: el stock sube y el costo se actualiza.
-7. **Etiquetas**: elegí la plantilla de rollo 22×12, agregá productos, imprimí (Cmd/Ctrl+P muestra la hoja).
-8. **Estadísticas**: cambiá entre 7 / 30 / 90 días.
-9. **Migrar Empretienda**: el asistente de 4 pasos y el plan del día del cambio.
+Con datos de demo (`pnpm db:seed --demo`) o con los datos reales ya migrados.
 
-Para volver los datos al estado inicial: *Migrar Empretienda → reiniciar datos de demo*.
+1. **Tienda** (`/`): la misma tienda de hoy. Entrá a *Anillos → acero quirúrgico*, filtrá por diámetro, abrí un
+   producto, agregalo al carrito y finalizá la compra eligiendo envío y medio de pago (Mercado Pago,
+   transferencia con descuento o efectivo al retirar). Con transferencia el pedido reserva stock y muestra el alias.
+2. **Panel** (`/admin`): el primer ingreso crea la cuenta de la dueña. El inicio muestra ventas de hoy, los
+   últimos 30 días contra los 30 anteriores, ganancia, lo que se está por acabar y avisos de pedidos pendientes.
+3. **Vender (mostrador)**: escaneá con el lector, con la cámara o escribí "anillo" y Enter. Probá agregar más
+   unidades de las que hay. Cobrá. El stock baja también en la tienda.
+4. **Ventas**: online y mostrador juntas. Abrí una venta online: datos del cliente, envío, botón para escribirle por
+   WhatsApp, y cambio de estado (cancelar devuelve el stock).
+5. **Stock**: alertas con cobertura en días y cuánto reponer, movimientos con trazabilidad, conteo físico escaneando.
+6. **Compras y facturas**: cargá una compra a mano o repetí una anterior. Con la clave de Claude de Báltica en
+   Configuración, aparece "Cargar factura por foto".
+7. **Etiquetas**: elegí plantilla, agregá productos e imprimí.
+8. **Estadísticas**: 7 / 30 / 90 días.
+9. **Migrar Empretienda**: subí los Excel exportados de Empretienda (productos, clientes, ventas) y copiá las fotos.
+10. **Configuración**: precios, envíos, alias para transferencias, usuarios de las vendedoras, Claude y copia de seguridad.

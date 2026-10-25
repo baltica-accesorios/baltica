@@ -1,56 +1,69 @@
+'use client'
 import { useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import Link from 'next/link'
 import { Info, Truck } from 'lucide-react'
-import { useStore } from '../../store/useStore'
-import { categoryName, subcategoryName } from '../../data/categories'
-import { money } from '../../lib/format'
-import { CartDrawer } from '../components/CartDrawer'
+import { categoryName, subcategoryName } from '@/data/categories'
+import { money } from '@/lib/format'
+import type { PublicProduct } from '@/lib/types'
+import type { Quote } from '@/lib/shipping'
+import { getShippingQuotes } from '../checkout-action'
+import { useCart, variantStockOf } from '../cart'
+import { Price } from '../components/ProductCard'
+import { offerEndLabel, offerPct } from '@/lib/pricing'
 
-export function ProductPage({ slug: slugProp }: { slug?: string }) {
-  const params = useParams(); const slug = slugProp ?? params.slug
-  const { products, addToCart } = useStore()
-  const p = products.find(p => p.slug === slug)
-  const [variant, setVariant] = useState<string | undefined>(p?.variants?.options[0])
+export function ProductPage({ p, shipping }: { p: PublicProduct; shipping: Quote[] }) {
+  const [zip, setZip] = useState('')
+  const [quotes, setQuotes] = useState<Quote[] | null>(null)
+  const [quoting, setQuoting] = useState(false)
+  const calc = async () => { if (!/\d{4}/.test(zip)) return; setQuoting(true); setQuotes(await getShippingQuotes(zip, qty)); setQuoting(false) }
+  const add = useCart(s => s.add)
+  // Arranca en el primer talle con stock
+  const [variant, setVariant] = useState<string | undefined>(p.variants?.options.find(o => variantStockOf(p, o) > 0) ?? p.variants?.options[0])
   const [qty, setQty] = useState(1)
-  const [open, setOpen] = useState(false)
-  if (!p) return <div className="container" style={{ padding: 60 }}>Producto no encontrado.</div>
-  const out = p.stock <= 0
+  const imgs = p.images?.length ? p.images : [p.image]
+  const [img, setImg] = useState(0)
+  const avail = variantStockOf(p, variant)
+  const out = p.stock <= 0 || avail <= 0
   return (
     <div className="container">
       <nav className="sf-bc" style={{ fontSize: '.95rem' }}>
-        <Link to="/">Inicio</Link><span className="sep">&gt;</span>
-        <Link to={`/${p.category}`}>{categoryName(p.category)}</Link>
-        {p.subcategory && <><span className="sep">&gt;</span><Link to={`/${p.category}/${p.subcategory}`}>{subcategoryName(p.subcategory)}</Link></>}
+        <Link href="/">Inicio</Link><span className="sep">&gt;</span>
+        <Link href={`/${p.category}`}>{categoryName(p.category)}</Link>
+        {p.subcategory && <><span className="sep">&gt;</span><Link href={`/${p.category}/${p.subcategory}`}>{subcategoryName(p.subcategory)}</Link></>}
         <span className="sep">&gt;</span><span>{p.name}</span>
       </nav>
       <div className="sf-product">
         <div className="sf-gallery">
-          <div className="thumbs">{(p.images ?? [p.image]).map((im, i) => <img key={i} src={im} className={i === 0 ? 'on' : ''} alt="" />)}</div>
-          <div className="main"><img src={p.image} alt={p.name} /></div>
+          {imgs.length > 1 && <div className="thumbs">{imgs.map((im, i) => <img key={i} src={im} className={i === img ? 'on' : ''} alt="" onClick={() => setImg(i)} />)}</div>}
+          <div className="main"><img src={imgs[img]} alt={p.name} /></div>
         </div>
         <div>
           <h1>{p.name}</h1>
-          <p className="price">{p.offerPrice ? <><del>{money(p.price)}</del>{money(p.offerPrice)}</> : money(p.price)}</p>
-          {p.variants && <>
+          <p className="price"><Price p={p} />{p.wholesale && <span className="sf-wholesale-tag">PRECIO MAYORISTA</span>}</p>
+          {offerPct(p) > 0 && <span className="sf-off">{offerPct(p)}% OFF{p.offerEndsAt ? ` hasta el ${offerEndLabel(p.offerEndsAt)} hs` : ''}</span>}
+          {p.variants && p.variants.options.length > 0 && <>
             <p className="lbl">{p.variants.attr}</p>
-            <div className="opts">{p.variants.options.map(o => <button key={o} className={'sf-opt' + (variant === o ? ' on' : '')} onClick={() => setVariant(o)}>{o}</button>)}</div>
+            <div className="opts">{p.variants.options.map(o => { const none = variantStockOf(p, o) <= 0; return <button key={o} className={'sf-opt' + (variant === o ? ' on' : '') + (none ? ' none' : '')} title={none ? 'Sin stock' : undefined} onClick={() => { setVariant(o); setQty(1) }}>{o}</button> })}</div>
           </>}
           <p className="lbl">Cantidad</p>
           <div className="sf-qty">
-            <button onClick={() => setQty(Math.max(1, qty - 1))}>−</button>
-            <input value={qty} readOnly />
-            <button onClick={() => setQty(Math.min(Math.max(1, p.stock), qty + 1))}>+</button>
+            <button aria-label="Quitar uno" onClick={() => setQty(Math.max(1, qty - 1))}>−</button>
+            <input value={qty} readOnly aria-label="Cantidad" />
+            <button aria-label="Agregar uno" onClick={() => setQty(Math.min(Math.max(1, avail), qty + 1))}>+</button>
           </div>
           <div>
-            <button className="sf-btn lg" disabled={out} onClick={() => { addToCart({ productId: p.id, qty, variant }); setOpen(true) }}>{out ? 'Sin stock' : 'Agregar al carrito'}</button>
+            <button className="sf-btn lg" disabled={out} onClick={() => add(p, qty, variant)}>{p.stock <= 0 ? 'Sin stock' : out ? `Sin stock en ${variant}` : 'Agregar al carrito'}</button>
           </div>
+          {!out && avail <= 3 && <p style={{ color: '#b45309', fontSize: 14, marginTop: 10 }}>{avail === 1 ? '¡Última unidad!' : `¡Últimas ${avail} unidades!`}</p>}
           <div className="sf-note"><Info size={18} style={{ flexShrink: 0, marginTop: 2 }} /><span>Colocar código postal 2900 (si sos de San Nicolás) o el que corresponda según tu ciudad para ver las opciones de retiros y envíos</span></div>
           <div style={{ fontWeight: 700, fontSize: '.95rem', display: 'flex', gap: 6, alignItems: 'center' }}><Truck size={16} /> Calculá el costo de envío</div>
-          <div className="sf-ship"><input placeholder="Código postal" /><button>Calcular</button></div>
-          {p.description && <p style={{ marginTop: 30, lineHeight: 1.6 }}>{p.description}</p>}
+          <form className="sf-ship" onSubmit={e => { e.preventDefault(); calc() }}><input placeholder="Código postal" inputMode="numeric" maxLength={8} value={zip} onChange={e => setZip(e.target.value)} aria-label="Código postal" /><button disabled={quoting}>{quoting ? '…' : 'Calcular'}</button></form>
+          <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: 14 }}>
+            {(quotes ?? shipping).map(s => <li key={s.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '6px 0', borderBottom: '1px solid #eee' }}><span>{s.name}{s.days && <span style={{ color: '#777' }}> · {s.days}</span>}</span><b>{s.price ? money(s.price) : 'Gratis'}</b></li>)}
+          </ul>
+          {p.description && <p style={{ marginTop: 30, lineHeight: 1.6, whiteSpace: 'pre-line' }}>{p.description}</p>}
         </div>
       </div>
-      {open && <CartDrawer onClose={() => setOpen(false)} />}
     </div>
   )
 }

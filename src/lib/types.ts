@@ -11,20 +11,25 @@ export interface Product {
   material: string
   price: number          // precio de venta al público
   offerPrice?: number | null
+  offerEndsAt?: string | null
   wholesalePrice?: number | null
   cost: number           // costo de reposición (último costo de compra)
   stock: number
-  minStock?: number
-  markupPct?: number     // % de ganancia propio del producto (si no, usa el de configuración)
+  minStock?: number | null
+  markupPct?: number | null // % de ganancia propio del producto (si no, usa el de configuración)
   sku: string
   barcode: string        // EAN-13 generado por el sistema (o el del proveedor)
   image: string
   images?: string[]
-  description?: string
+  description?: string | null
   variants?: Variant | null
+  variantStock?: Record<string, number> | null  // stock por talle/opción; `stock` es la suma
   createdAt: string
   active?: boolean
 }
+
+// Lo que ve la tienda pública: sin costo ni datos internos
+export type PublicProduct = Pick<Product, 'id' | 'slug' | 'name' | 'category' | 'subcategory' | 'price' | 'offerPrice' | 'offerEndsAt' | 'stock' | 'image' | 'images' | 'description' | 'variants' | 'variantStock' | 'createdAt'> & { wholesale?: boolean }
 
 export interface SaleItem {
   productId: string
@@ -32,11 +37,14 @@ export interface SaleItem {
   qty: number
   unitPrice: number      // precio al momento de la venta
   unitCost: number       // costo al momento de la venta (para ganancia real)
-  variant?: string
+  variant?: string | null
 }
 
+export interface Customer { name: string; email?: string; phone?: string; city?: string; address?: string; zip?: string }
+
 export type PaymentMethod = 'efectivo' | 'transferencia' | 'debito' | 'credito' | 'mercadopago' | 'qr'
-export type SaleStatus = 'pagada' | 'pendiente' | 'enviada' | 'entregada' | 'cancelada'
+// a_resolver: se cobró por Mercado Pago pero el stock ya no alcanzaba (lo vendieron en el mostrador mientras pagaba)
+export type SaleStatus = 'pagada' | 'pendiente' | 'enviada' | 'entregada' | 'cancelada' | 'a_resolver'
 
 export interface Sale {
   id: string
@@ -46,13 +54,20 @@ export interface Sale {
   items: SaleItem[]
   subtotal: number
   discount: number
+  shipping?: number
   total: number
   payment: PaymentMethod
   status: SaleStatus
-  customer?: { name: string; email?: string; phone?: string; city?: string }
-  note?: string
-  seller?: string
+  customer?: Customer | null
+  shippingMethod?: string | null
+  note?: string | null
+  seller?: string | null
+  stockApplied?: boolean
+  mpPaymentId?: string | null
+  couponCode?: string | null
 }
+
+export interface Coupon { code: string; type: 'pct' | 'fixed' | 'envio'; value: number; minAmount: number; endsAt: string | null; maxUses: number | null; uses: number; active: boolean }
 
 export type MovementReason = 'venta_online' | 'venta_local' | 'compra' | 'ajuste' | 'devolucion' | 'migracion' | 'rotura'
 
@@ -61,17 +76,18 @@ export interface StockMovement {
   productId: string
   delta: number
   reason: MovementReason
-  ref?: string          // id de venta / compra
+  variant?: string | null
+  ref?: string | null   // id de venta / compra
   createdAt: string
   by: string
 }
 
-export interface PurchaseLine { productId?: string; description: string; qty: number; unitCost: number; matched: boolean; markupPct: number; suggestedPrice: number; barcode?: string }
+export interface PurchaseLine { productId?: string; variant?: string; description: string; qty: number; unitCost: number; matched: boolean; markupPct: number; suggestedPrice: number; barcode?: string }
 export interface Purchase {
   id: string
   supplier: string
   date: string
-  invoiceNumber?: string
+  invoiceNumber?: string | null
   lines: PurchaseLine[]
   total: number
   status: 'borrador' | 'confirmada'
@@ -88,7 +104,41 @@ export interface LabelTemplate {
   showName: boolean
   showSku: boolean
   description: string
+  layout?: LabelLayout | null
 }
+
+export type LabelField = 'logo' | 'store' | 'name' | 'barcode' | 'price' | 'sku' | 'text'
+export interface LabelLayout {
+  order: LabelField[]          // de arriba hacia abajo; lo que no está, no se imprime
+  align: 'center' | 'left'
+  storeText: string            // ej. "BÁLTICA"
+  customText: string           // texto libre, ej. "Acero quirúrgico" o "Cambios 30 días"
+  nameSize: number             // tamaños de letra en puntos
+  priceSize: number
+  skuSize: number
+  storeSize: number
+  textSize: number
+  barcodeHeight: number        // en mm
+  barcodeNumber: boolean       // números debajo de las barras
+  priceBold: boolean
+  showCents: boolean
+  border: boolean
+  gapMm: number                // separación entre etiquetas
+  paddingMm: number
+  logoUrl?: string             // vacío = logo de Báltica
+  logoHeight?: number          // en mm
+  logoBW?: boolean             // blanco y negro (para impresoras térmicas)
+}
+
+export interface ShippingOption {
+  id: string
+  name: string
+  price: number              // fijo; en las de Correo es el precio de respaldo si la cotización en vivo no está disponible
+  description: string
+  kind?: 'fijo' | 'correo_domicilio' | 'correo_sucursal'
+  zips?: string              // códigos postales donde se ofrece: "2900, 2901-2905, 29*". Vacío = todo el país
+}
+export interface Parcel { originZip: string; baseWeightG: number; itemWeightG: number; lengthCm: number; widthCm: number; heightCm: number }
 
 export interface Settings {
   storeName: string
@@ -96,6 +146,17 @@ export interface Settings {
   roundTo: number           // redondeo de precio sugerido
   lowStockThreshold: number
   sellers: string[]
-  aiInvoices: boolean       // lectura de facturas por foto con IA (opcional, con la cuenta de Claude del cliente)
-  anthropicKey?: string
+  aiInvoices: boolean       // lectura de facturas por foto con IA (opcional, con la cuenta de Claude de Báltica)
+  transferDiscountPct: number
+  transferInfo: string      // alias / CBU que ve el cliente al elegir transferencia
+  cashOnPickup: boolean     // permitir "efectivo al retirar"
+  shippingOptions: ShippingOption[]
+  parcel: Parcel            // datos del paquete para cotizar con Correo Argentino
+  whatsapp: string
+  email: string
+  instagram: string
+  announcement: string      // franja de aviso arriba de la tienda (vacío = no se muestra)
+  gaId: string              // Google Analytics (el mismo de Empretienda, para no perder las estadísticas)
 }
+
+export interface User { id: number; name: string; email: string; role: 'duena' | 'vendedora' }

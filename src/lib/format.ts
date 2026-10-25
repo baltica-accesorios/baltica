@@ -17,3 +17,8 @@ export function isValidEan13(code: string) {
   return /^\d{13}$/.test(code) && ean13(code.slice(0, 12)) === code
 }
 export function roundTo(n: number, step: number) { return Math.round(n / step) * step }
+/** Teléfono argentino como lo pide wa.me (549 + característica + número). */
+export function waNumber(phone: string) {
+  const d = phone.replace(/\D/g, '').replace(/^0/, '')
+  return d.startsWith('54') ? d : '549' + d
+}

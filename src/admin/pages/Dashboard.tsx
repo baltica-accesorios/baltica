@@ -1,13 +1,15 @@
-import { Link } from 'react-router-dom'
+'use client'
+import Link from 'next/link'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { ShoppingCart, ScanBarcode, Camera, ArrowRight, TrendingUp, TrendingDown } from 'lucide-react'
-import { useStore } from '../../store/useStore'
+import { useAdmin } from '../context'
+import type { Sale } from '@/lib/types'
 import { PageHeader, Stat, Card, btnPrimary, btnGhost } from '../components/AdminLayout'
-import { inRange, summary, byDay, topProducts, coverageDays } from '../../lib/metrics'
-import { money, moneyShort, pct, timeAR } from '../../lib/format'
+import { inRange, summary, byDay, topProducts, coverageDays } from '@/lib/metrics'
+import { money, moneyShort, pct, timeAR } from '@/lib/format'
 
-export function Dashboard() {
-  const { sales, products, settings } = useStore()
+export function Dashboard({ sales }: { sales: Sale[] }) {
+  const { products, settings, user } = useAdmin()
   const now = new Date()
   const start = (d: number) => { const x = new Date(now); x.setDate(now.getDate() - d); x.setHours(0, 0, 0, 0); return x }
   const today = summary(inRange(sales, start(0), now))
@@ -18,16 +20,20 @@ export function Dashboard() {
   const low = products.filter(p => p.stock <= (p.minStock ?? settings.lowStockThreshold)).sort((a, b) => a.stock - b.stock)
   const top = topProducts(inRange(sales, start(29), now), products, 5)
   const recent = [...sales].reverse().slice(0, 6)
+  const toResolve = sales.filter(s => s.status === 'a_resolver')
+  const pendingOnline = sales.filter(s => s.channel === 'online' && s.status === 'pendiente')
   const runningOut = products.filter(p => p.stock > 0).map(p => ({ p, d: coverageDays(p, sales) })).filter(x => x.d < 14).sort((a, b) => a.d - b.d).slice(0, 5)
 
   return (
     <>
-      <PageHeader title={`Hola, Sol`} subtitle={`${now.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}. Así va el negocio.`}>
-        <Link to="/admin/pos" className={btnPrimary}><ShoppingCart size={16} /> Nueva venta en mostrador</Link>
-        <Link to="/admin/escaner" className={btnGhost}><ScanBarcode size={16} /> Escanear</Link>
-        <Link to="/admin/compras/nueva" className={btnGhost}><Camera size={16} /> Cargar factura</Link>
+      <PageHeader title={`Hola, ${user.name}`} subtitle={`${now.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}. Así va el negocio.`}>
+        <Link href="/admin/pos" className={btnPrimary}><ShoppingCart size={16} /> Nueva venta en mostrador</Link>
+        <Link href="/admin/escaner" className={btnGhost}><ScanBarcode size={16} /> Escanear</Link>
+        <Link href="/admin/compras/nueva" className={btnGhost}><Camera size={16} /> Cargar factura</Link>
       </PageHeader>
 
+      {toResolve.length > 0 && <Link href="/admin/ventas" className="block mb-4 rounded-xl bg-red-50 border border-red-200 text-red-800 px-4 py-3 text-sm"><b>{toResolve.length} {toResolve.length === 1 ? 'venta online cobrada' : 'ventas online cobradas'} sin stock</b>: se vendió en el local mientras el cliente pagaba. Tocá para resolver (reponer, ofrecer otra cosa o devolver el dinero).</Link>}
+      {pendingOnline.length > 0 && <Link href="/admin/ventas" className="block mb-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 px-4 py-3 text-sm"><b>{pendingOnline.length} {pendingOnline.length === 1 ? 'pedido online pendiente' : 'pedidos online pendientes'}</b> de pago o confirmación.</Link>}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <Stat label="Vendido hoy" value={moneyShort(today.revenue)} sub={`${today.count} ventas · ganancia ${moneyShort(today.profit)}`} />
         <Stat label="Últimos 30 días" value={moneyShort(month.revenue)} sub={`${delta >= 0 ? '▲' : '▼'} ${pct(Math.abs(delta))} vs. 30 días anteriores`} tone={delta >= 0 ? 'good' : 'bad'} />
@@ -36,7 +42,7 @@ export function Dashboard() {
       </div>
 
       <div className="grid lg:grid-cols-3 gap-4 mb-6">
-        <Card className="lg:col-span-2" title="Ventas de los últimos 30 días" action={<Link to="/admin/estadisticas" className="text-sm text-stone-500 hover:underline flex items-center gap-1">Ver estadísticas <ArrowRight size={14} /></Link>}>
+        <Card className="lg:col-span-2" title="Ventas de los últimos 30 días" action={<Link href="/admin/estadisticas" className="text-sm text-stone-500 hover:underline flex items-center gap-1">Ver estadísticas <ArrowRight size={14} /></Link>}>
           <div className="h-64">
             <ResponsiveContainer>
               <AreaChart data={series} margin={{ left: 0, right: 8, top: 8 }}>
@@ -55,7 +61,7 @@ export function Dashboard() {
           </div>
           <div className="flex gap-4 text-xs text-stone-500 mt-2"><span className="flex items-center gap-1"><i className="w-3 h-0.5 bg-stone-900 inline-block" />Mostrador</span><span className="flex items-center gap-1"><i className="w-3 h-0.5 bg-amber-600 inline-block" />Tienda online</span></div>
         </Card>
-        <Card title="Se está por acabar" action={<Link to="/admin/stock" className="text-sm text-stone-500 hover:underline">Ver stock</Link>}>
+        <Card title="Se está por acabar" action={<Link href="/admin/stock" className="text-sm text-stone-500 hover:underline">Ver stock</Link>}>
           <p className="text-xs text-stone-500 mb-3">Según el ritmo de venta de los últimos 30 días.</p>
           <ul className="divide-y">
             {runningOut.map(({ p, d }) => (
@@ -67,7 +73,7 @@ export function Dashboard() {
       </div>
 
       <div className="grid lg:grid-cols-2 gap-4">
-        <Card title="Últimas ventas" action={<Link to="/admin/ventas" className="text-sm text-stone-500 hover:underline">Ver todas</Link>}>
+        <Card title="Últimas ventas" action={<Link href="/admin/ventas" className="text-sm text-stone-500 hover:underline">Ver todas</Link>}>
           <table className="w-full text-sm">
             <tbody className="divide-y">{recent.map(s => (
               <tr key={s.id}><td className="py-2 text-stone-500 w-16">{timeAR(s.createdAt)}</td><td className="py-2"><span className={`text-[10px] px-1.5 py-0.5 rounded-full mr-2 ${s.channel === 'local' ? 'bg-stone-900 text-white' : 'bg-amber-100 text-amber-800'}`}>{s.channel === 'local' ? 'MOSTRADOR' : 'ONLINE'}</span>{s.items.map(i => i.name).join(', ')}</td><td className="py-2 text-right font-medium">{moneyShort(s.total)}</td></tr>

@@ -2,13 +2,16 @@ import type { Sale, Product } from './types'
 
 export const saleProfit = (s: Sale) => s.items.reduce((a, i) => a + i.qty * (i.unitPrice - i.unitCost), 0) - s.discount
 export const saleCost = (s: Sale) => s.items.reduce((a, i) => a + i.qty * i.unitCost, 0)
-export const valid = (s: Sale) => s.status !== 'cancelada'
+// Ventas que cuentan: ni canceladas ni pedidos online sin pagar
+export const valid = (s: Sale) => s.status !== 'cancelada' && !(s.channel === 'online' && s.status === 'pendiente' && s.payment === 'mercadopago')
+// Lo cobrado por mercadería (el envío se cobra pero se paga al correo)
+export const net = (s: Sale) => s.total - (s.shipping ?? 0)
 
 export function inRange(sales: Sale[], from: Date, to: Date) {
   return sales.filter(s => valid(s) && new Date(s.createdAt) >= from && new Date(s.createdAt) <= to)
 }
 export function summary(sales: Sale[]) {
-  const revenue = sales.reduce((a, s) => a + s.total, 0)
+  const revenue = sales.reduce((a, s) => a + net(s), 0)
   const cost = sales.reduce((a, s) => a + saleCost(s), 0)
   const profit = revenue - cost
   const units = sales.reduce((a, s) => a + s.items.reduce((b, i) => b + i.qty, 0), 0)
@@ -21,7 +24,7 @@ export function byDay(sales: Sale[], days: number, end = new Date()) {
     const dt = new Date(end); dt.setDate(end.getDate() - d)
     const key = dt.toISOString().slice(0, 10)
     const ss = sales.filter(s => valid(s) && s.createdAt.slice(0, 10) === key)
-    out.push({ day: key, label: dt.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' }), online: ss.filter(s => s.channel === 'online').reduce((a, s) => a + s.total, 0), local: ss.filter(s => s.channel === 'local').reduce((a, s) => a + s.total, 0), profit: ss.reduce((a, s) => a + saleProfit(s), 0), count: ss.length })
+    out.push({ day: key, label: dt.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' }), online: ss.filter(s => s.channel === 'online').reduce((a, s) => a + net(s), 0), local: ss.filter(s => s.channel === 'local').reduce((a, s) => a + net(s), 0), profit: ss.reduce((a, s) => a + saleProfit(s), 0), count: ss.length })
   }
   return out
 }
@@ -38,7 +41,7 @@ export function byCategory(sales: Sale[], products: Product[]) {
 export function byWeekday(sales: Sale[]) {
   const names = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
   const out = names.map(n => ({ name: n, total: 0, count: 0 }))
-  sales.filter(valid).forEach(s => { const d = new Date(s.createdAt).getDay(); out[d].total += s.total; out[d].count++ })
+  sales.filter(valid).forEach(s => { const d = new Date(s.createdAt).getDay(); out[d].total += net(s); out[d].count++ })
   return out
 }
 export function byHour(sales: Sale[]) {
@@ -48,7 +51,7 @@ export function byHour(sales: Sale[]) {
 }
 export function byPayment(sales: Sale[]) {
   const m = new Map<string, number>()
-  sales.filter(valid).forEach(s => m.set(s.payment, (m.get(s.payment) ?? 0) + s.total))
+  sales.filter(valid).forEach(s => m.set(s.payment, (m.get(s.payment) ?? 0) + net(s)))
   return [...m.entries()].map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value)
 }
 export function stockValue(products: Product[]) {

@@ -1,55 +1,68 @@
-import { NavLink, Outlet, Link } from 'react-router-dom'
-import { LayoutDashboard, Package, Boxes, ScanBarcode, ShoppingCart, Receipt, Camera, Tag, Database, BarChart3, Settings, Store, ExternalLink, AlertTriangle } from 'lucide-react'
-import { useStore } from '../../store/useStore'
-import { LOGO } from '../../data/categories'
+'use client'
+import Link from 'next/link'
+import { useEffect, useState } from 'react'
+import { usePathname } from 'next/navigation'
+import { LayoutDashboard, Ticket, Users, Package, Boxes, ScanBarcode, ShoppingCart, Receipt, Camera, Tag, Database, BarChart3, Settings, Store, ExternalLink, AlertTriangle, LogOut } from 'lucide-react'
+import { useAdmin } from '../context'
+import { logout } from '../actions'
+import { LOGO } from '@/data/categories'
 
+// owner: sólo la dueña (costos, estadísticas, configuración)
 const NAV = [
-  { to: '/admin', label: 'Inicio', icon: LayoutDashboard, end: true },
+  { to: '/admin', label: 'Inicio', icon: LayoutDashboard, end: true, owner: true },
   { to: '/admin/pos', label: 'Vender (mostrador)', icon: ShoppingCart, hot: true },
   { to: '/admin/ventas', label: 'Ventas', icon: Receipt },
-  { to: '/admin/productos', label: 'Productos', icon: Package },
+  { to: '/admin/productos', label: 'Productos', icon: Package, owner: true },
   { to: '/admin/stock', label: 'Stock', icon: Boxes },
   { to: '/admin/escaner', label: 'Escáner', icon: ScanBarcode },
-  { to: '/admin/compras', label: 'Compras y facturas', icon: Camera },
+  { to: '/admin/compras', label: 'Compras y facturas', icon: Camera, owner: true },
   { to: '/admin/etiquetas', label: 'Etiquetas', icon: Tag },
-  { to: '/admin/estadisticas', label: 'Estadísticas', icon: BarChart3 },
-  { to: '/admin/migracion', label: 'Migrar Empretienda', icon: Database },
-  { to: '/admin/configuracion', label: 'Configuración', icon: Settings },
+  { to: '/admin/cupones', label: 'Cupones', icon: Ticket, owner: true },
+  { to: '/admin/clientes', label: 'Clientes', icon: Users, owner: true },
+  { to: '/admin/estadisticas', label: 'Estadísticas', icon: BarChart3, owner: true },
+  { to: '/admin/migracion', label: 'Migrar Empretienda', icon: Database, owner: true },
+  { to: '/admin/configuracion', label: 'Configuración', icon: Settings, owner: true },
 ]
 
-export function AdminLayout() {
-  const low = useStore(s => s.products.filter(p => p.stock <= (p.minStock ?? s.settings.lowStockThreshold)).length)
-  const pending = useStore(s => s.sales.filter(x => x.status === 'pendiente').length)
+export function AdminLayout({ children }: { children: React.ReactNode }) {
+  const { badges: { low, pending, customers }, user } = useAdmin()
+  const path = usePathname()
+  // El panel se dibuja en el navegador: así fechas, horas y gráficos usan la zona horaria de quien lo mira
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+  const nav = NAV.filter(n => !n.owner || user.role === 'duena')
+  const isActive = (n: typeof NAV[0]) => n.end ? path === n.to : path === n.to || path.startsWith(n.to + '/')
   return (
     <div className="adm min-h-screen bg-stone-100 text-stone-900 flex">
-      <aside className="hidden md:flex w-64 shrink-0 bg-stone-950 text-stone-300 flex-col sticky top-0 h-screen">
+      <aside className="hidden md:flex w-64 shrink-0 bg-stone-950 text-stone-300 flex-col sticky top-0 h-screen print:hidden">
         <div className="px-5 py-5 border-b border-stone-800 flex items-center gap-3">
           <img src={LOGO} alt="" className="h-10 invert" />
           <div><div className="text-white font-semibold leading-tight">Báltica</div><div className="text-xs text-stone-500">Panel de gestión</div></div>
         </div>
         <nav className="flex-1 overflow-auto py-3">
-          {NAV.map(n => (
-            <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => `flex items-center gap-3 px-5 py-2.5 text-sm transition ${isActive ? 'bg-stone-800 text-white border-r-2 border-amber-400' : 'hover:bg-stone-900 hover:text-white'} ${n.hot ? 'font-semibold text-amber-300' : ''}`}>
+          {nav.map(n => (
+            <Link key={n.to} href={n.to} className={`flex items-center gap-3 px-5 py-2.5 text-sm transition ${isActive(n) ? 'bg-stone-800 text-white border-r-2 border-amber-400' : 'hover:bg-stone-900 hover:text-white'} ${n.hot ? 'font-semibold text-amber-300' : ''}`}>
               <n.icon size={18} />{n.label}
               {n.to === '/admin/stock' && low > 0 && <span className="ml-auto text-[10px] bg-red-500 text-white rounded-full px-1.5 py-0.5">{low}</span>}
               {n.to === '/admin/ventas' && pending > 0 && <span className="ml-auto text-[10px] bg-amber-400 text-black rounded-full px-1.5 py-0.5">{pending}</span>}
-            </NavLink>
+              {n.to === '/admin/clientes' && customers > 0 && <span className="ml-auto text-[10px] bg-amber-400 text-black rounded-full px-1.5 py-0.5">{customers}</span>}
+            </Link>
           ))}
         </nav>
-        <div className="p-4 border-t border-stone-800 text-xs">
-          <Link to="/" className="flex items-center gap-2 text-stone-400 hover:text-white"><Store size={14} /> Ver tienda pública <ExternalLink size={12} /></Link>
-          <div className="mt-3 text-stone-600">Prototipo frontend. Los datos viven en tu navegador.</div>
+        <div className="p-4 border-t border-stone-800 text-xs space-y-3">
+          <Link href="/" target="_blank" className="flex items-center gap-2 text-stone-400 hover:text-white"><Store size={14} /> Ver tienda pública <ExternalLink size={12} /></Link>
+          <div className="flex items-center justify-between text-stone-500"><span>{user.name}</span><button onClick={() => logout()} className="flex items-center gap-1 hover:text-white"><LogOut size={12} /> Salir</button></div>
         </div>
       </aside>
       <div className="flex-1 min-w-0">
-        <div className="md:hidden bg-stone-950 text-white px-4 py-3 flex items-center justify-between sticky top-0 z-20">
+        <div className="md:hidden bg-stone-950 text-white px-4 py-3 flex items-center justify-between sticky top-0 z-20 print:hidden">
           <span className="font-semibold">Báltica · Panel</span>
-          <Link to="/admin/pos" className="text-amber-300 text-sm font-semibold">Vender</Link>
+          <div className="flex items-center gap-4"><Link href="/admin/pos" className="text-amber-300 text-sm font-semibold">Vender</Link><button aria-label="Salir" onClick={() => logout()}><LogOut size={16} /></button></div>
         </div>
-        <nav className="md:hidden flex overflow-x-auto gap-1 bg-white border-b px-2 py-2 text-xs sticky top-12 z-10">
-          {NAV.map(n => <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => `px-3 py-1.5 rounded-full whitespace-nowrap ${isActive ? 'bg-stone-900 text-white' : 'bg-stone-100'}`}>{n.label}</NavLink>)}
+        <nav className="md:hidden flex overflow-x-auto gap-1 bg-white border-b px-2 py-2 text-xs sticky top-12 z-10 print:hidden">
+          {nav.map(n => <Link key={n.to} href={n.to} className={`px-3 py-1.5 rounded-full whitespace-nowrap ${isActive(n) ? 'bg-stone-900 text-white' : 'bg-stone-100'}`}>{n.label}{n.to === '/admin/ventas' && pending > 0 ? ` (${pending})` : ''}</Link>)}
         </nav>
-        <main className="p-4 md:p-8 max-w-7xl"><Outlet /></main>
+        <main className="p-4 md:p-8 max-w-7xl">{mounted ? children : <div className="text-stone-400 text-sm py-20 text-center">Cargando…</div>}</main>
       </div>
     </div>
   )

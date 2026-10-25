@@ -1,41 +1,38 @@
+'use client'
 import { useMemo, useState } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
-import { useStore } from '../../store/useStore'
-import { categoryName, subcategoryName } from '../../data/categories'
+import Link from 'next/link'
+import { categoryName, subcategoryName } from '@/data/categories'
+import type { PublicProduct } from '@/lib/types'
 import { ProductCard } from '../components/ProductCard'
+import { currentPrice } from '@/lib/pricing'
 
-export function Category({ all = false, search = false }: { all?: boolean; search?: boolean }) {
-  const params = useParams(); const cat = params.cat ?? params.page; const sub = params.sub
-  const [sp] = useSearchParams()
-  const q = sp.get('q')?.toLowerCase() ?? ''
-  const products = useStore(s => s.products)
+export function Category({ products, cat, sub, search, all }: { products: PublicProduct[]; cat?: string; sub?: string; search?: string; all?: boolean }) {
   const [sort, setSort] = useState('new')
   const [opt, setOpt] = useState<string | null>(null)
 
   const list = useMemo(() => {
-    let l = products.filter(p => p.active !== false)
-    if (search) l = l.filter(p => p.name.toLowerCase().includes(q))
-    else if (!all) l = l.filter(p => p.category === cat && (!sub || p.subcategory === sub))
-    if (opt) l = l.filter(p => p.variants?.options.includes(opt))
+    let l = products
+    // Filtrar por talle muestra sólo lo que tiene stock en ese talle
+    if (opt) l = l.filter(p => p.variants?.options.includes(opt) && (p.variantStock ? (p.variantStock[opt] ?? 0) > 0 : p.stock > 0))
     if (sort === 'new') l = [...l].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     if (sort === 'old') l = [...l].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-    if (sort === 'asc') l = [...l].sort((a, b) => a.price - b.price)
-    if (sort === 'desc') l = [...l].sort((a, b) => b.price - a.price)
+    if (sort === 'asc') l = [...l].sort((a, b) => currentPrice(a) - currentPrice(b))
+    if (sort === 'desc') l = [...l].sort((a, b) => currentPrice(b) - currentPrice(a))
     return l
-  }, [products, cat, sub, all, search, q, sort, opt])
+  }, [products, sort, opt])
 
   const attr = useMemo(() => {
     const m = new Map<string, Set<string>>()
-    list.forEach(p => { if (p.variants) { if (!m.has(p.variants.attr)) m.set(p.variants.attr, new Set()); p.variants.options.forEach(o => m.get(p.variants!.attr)!.add(o)) } })
+    products.forEach(p => { if (p.variants) { if (!m.has(p.variants.attr)) m.set(p.variants.attr, new Set()); p.variants.options.forEach(o => m.get(p.variants!.attr)!.add(o)) } })
     return [...m.entries()][0]
-  }, [list])
+  }, [products])
 
   return (
     <div className="container">
       <nav className="sf-bc">
-        <Link to="/">Inicio</Link>
-        {search ? <><span className="sep">/</span><span>Resultados para "{q}"</span></> : all ? <><span className="sep">/</span><span>Productos</span></> : <>
-          <span className="sep">/</span><Link to={`/${cat}`}>{categoryName(cat!)}</Link>
+        <Link href="/">Inicio</Link>
+        {search !== undefined ? <><span className="sep">/</span><span>Resultados para &quot;{search}&quot;</span></> : all ? <><span className="sep">/</span><span>Productos</span></> : <>
+          <span className="sep">/</span><Link href={`/${cat}`}>{categoryName(cat!)}</Link>
           {sub && <><span className="sep">/</span><span>{subcategoryName(sub)}</span></>}
         </>}
       </nav>
@@ -43,12 +40,12 @@ export function Category({ all = false, search = false }: { all?: boolean; searc
         <aside className="sf-filter">
           {attr ? <>
             <h4>{attr[0]}</h4>
-            <div className="chips">{[...attr[1]].map(o => <span key={o} className={'sf-chip' + (opt === o ? ' on' : '')} onClick={() => setOpt(opt === o ? null : o)}>{o}</span>)}</div>
-          </> : <h4>Filtrar</h4>}
+            <div className="chips">{[...attr[1]].map(o => <button key={o} className={'sf-chip' + (opt === o ? ' on' : '')} onClick={() => setOpt(opt === o ? null : o)}>{o}</button>)}</div>
+          </> : null}
         </aside>
         <div>
           <div className="sf-toolbar" style={{ marginBottom: 30, justifyContent: 'flex-end' }}>
-            <select className="sf-select" value={sort} onChange={e => setSort(e.target.value)}>
+            <select className="sf-select" aria-label="Ordenar" value={sort} onChange={e => setSort(e.target.value)}>
               <option value="new">Más nuevo a más viejo</option><option value="old">Más viejo a más nuevo</option>
               <option value="asc">Precio menor a mayor</option><option value="desc">Precio mayor a menor</option>
             </select>

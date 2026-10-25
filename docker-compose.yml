@@ -1,0 +1,12 @@
+# Base de datos para desarrollo local: `docker compose up -d`
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: baltica
+      POSTGRES_PASSWORD: baltica
+      POSTGRES_DB: baltica
+    ports: ["5433:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+volumes:
+  pgdata:

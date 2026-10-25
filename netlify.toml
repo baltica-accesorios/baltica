@@ -1,0 +1,7 @@
+# Deploy en Netlify: cada push a main publica la tienda. Las migraciones de la base corren antes del build.
+[build]
+  command = "pnpm db:migrate && pnpm build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "22"
