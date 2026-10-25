@@ -1,0 +1,19 @@
+# Verifica que el proyecto compile en cada cambio. El deploy lo hace Netlify al hacer push a main.
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm build
+        env:
+          DATABASE_URL: postgres://ci:ci@localhost:5432/ci

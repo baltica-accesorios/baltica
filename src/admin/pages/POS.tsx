@@ -1,10 +1,13 @@
+'use client'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Camera, Search, Trash2, Check, Banknote, Landmark, CreditCard, QrCode, Percent, UserRound, Printer, RotateCcw, ShoppingBag } from 'lucide-react'
-import { useStore, findProduct } from '../../store/useStore'
+import { useAdmin } from '../context'
+import { registerLocalSale } from '../actions'
+import { findProduct, byCode } from '@/lib/search'
 import { useKeyboardWedge, CameraScanner } from '../components/Scanner'
 import { PageHeader, Card, Hint, btnPrimary, btnGhost, input } from '../components/AdminLayout'
-import { money, moneyShort } from '../../lib/format'
-import type { PaymentMethod, SaleItem, Sale } from '../../lib/types'
+import { money, moneyShort } from '@/lib/format'
+import type { PaymentMethod, SaleItem, Sale } from '@/lib/types'
 
 interface Line extends SaleItem { image: string; stock: number }
 const PAY: { id: PaymentMethod; label: string; icon: typeof Banknote }[] = [
@@ -13,12 +16,14 @@ const PAY: { id: PaymentMethod; label: string; icon: typeof Banknote }[] = [
 ]
 
 export function POS() {
-  const { products, registerSale, settings } = useStore()
+  const { products, settings, user } = useAdmin()
+  const owner = user.role === 'duena'
   const [lines, setLines] = useState<Line[]>([])
   const [q, setQ] = useState('')
   const [payment, setPayment] = useState<PaymentMethod>('efectivo')
   const [discount, setDiscount] = useState(0)
-  const [seller, setSeller] = useState(settings.sellers[0])
+  const [seller, setSeller] = useState(settings.sellers.includes(user.name) ? user.name : settings.sellers[0] ?? user.name)
+  const [saving, setSaving] = useState(false)
   const [customer, setCustomer] = useState('')
   const [cam, setCam] = useState(false)
   const [flash, setFlash] = useState<{ ok: boolean; msg: string } | null>(null)
@@ -40,7 +45,7 @@ export function POS() {
   }, [products])
 
   const onScan = useCallback((code: string) => {
-    const p = products.find(p => p.barcode === code || p.sku.toLowerCase() === code.toLowerCase())
+    const p = byCode(products, code)
     if (p) addProduct(p.id, p.variants?.options[0])
     else setFlash({ ok: false, msg: `Código ${code} no encontrado. Podés crearlo desde Productos.` })
   }, [products, addProduct])
@@ -56,9 +61,12 @@ export function POS() {
   const profit = lines.reduce((a, l) => a + l.qty * (l.unitPrice - l.unitCost), 0) - discountAmt
   const change = cash ? Number(cash) - total : 0
 
-  const confirm = () => {
-    const sale = registerSale(lines.map(({ image: _i, stock: _s, ...rest }) => rest), { channel: 'local', payment, discount: discountAmt, seller, customer: customer ? { name: customer } : undefined })
-    setDone(sale); setLines([]); setDiscount(0); setCustomer(''); setCash('')
+  const confirm = async () => {
+    setSaving(true)
+    const r = await registerLocalSale(lines.map(l => ({ productId: l.productId, qty: l.qty, unitPrice: l.unitPrice, variant: l.variant })), { payment, discount: discountAmt, seller, customer })
+    setSaving(false)
+    if (!r.ok) { setFlash({ ok: false, msg: r.error }); return }
+    setDone(r.sale); setLines([]); setDiscount(0); setCustomer(''); setCash('')
   }
 
   if (done) return (
@@ -128,7 +136,7 @@ export function POS() {
             <div className="grid grid-cols-3 gap-2">{PAY.map(p => <button key={p.id} onClick={() => setPayment(p.id)} className={`flex flex-col items-center gap-1 rounded-lg border p-2 text-xs ${payment === p.id ? 'bg-stone-900 text-white border-stone-900' : 'hover:bg-stone-50'}`}><p.icon size={18} />{p.label}</button>)}</div>
             <div className="grid grid-cols-2 gap-3 mt-4">
               <label className="text-xs text-stone-500"><span className="flex items-center gap-1 mb-1"><Percent size={12} /> Descuento %</span><input className={input} type="number" min={0} max={100} value={discount} onChange={e => setDiscount(Number(e.target.value))} /></label>
-              <label className="text-xs text-stone-500"><span className="flex items-center gap-1 mb-1"><UserRound size={12} /> Vendedor/a</span><select className={input} value={seller} onChange={e => setSeller(e.target.value)}>{settings.sellers.map(s => <option key={s}>{s}</option>)}</select></label>
+              <label className="text-xs text-stone-500"><span className="flex items-center gap-1 mb-1"><UserRound size={12} /> Vendedor/a</span><select className={input} value={seller} onChange={e => setSeller(e.target.value)}>{[...new Set([...settings.sellers, user.name])].map(s => <option key={s}>{s}</option>)}</select></label>
             </div>
             <label className="text-xs text-stone-500 block mt-3">Cliente (opcional)<input className={input + ' mt-1'} placeholder="Nombre o teléfono" value={customer} onChange={e => setCustomer(e.target.value)} /></label>
             {payment === 'efectivo' && <label className="text-xs text-stone-500 block mt-3">Paga con<input className={input + ' mt-1'} type="number" placeholder="Monto recibido" value={cash} onChange={e => setCash(e.target.value)} />{cash && change >= 0 && <span className="text-emerald-700 font-medium">Vuelto: {money(change)}</span>}</label>}
@@ -137,11 +145,11 @@ export function POS() {
             <div className="flex justify-between text-sm py-1"><span>Subtotal</span><span>{money(subtotal)}</span></div>
             {discountAmt > 0 && <div className="flex justify-between text-sm py-1 text-red-600"><span>Descuento {discount}%</span><span>-{money(discountAmt)}</span></div>}
             <div className="flex justify-between text-2xl font-bold py-2 border-t mt-1"><span>Total</span><span>{money(total)}</span></div>
-            <div className="text-xs text-stone-500 flex justify-between"><span>Ganancia estimada</span><span className="text-emerald-700 font-medium">{money(profit)}</span></div>
-            <button className={btnPrimary + ' w-full justify-center py-3 text-base mt-4'} disabled={lines.length === 0} onClick={confirm}><Check size={18} /> Cobrar {money(total)}</button>
+            {owner && <div className="text-xs text-stone-500 flex justify-between"><span>Ganancia estimada</span><span className="text-emerald-700 font-medium">{money(profit)}</span></div>}
+            <button className={btnPrimary + ' w-full justify-center py-3 text-base mt-4'} disabled={lines.length === 0 || saving} onClick={confirm}><Check size={18} /> {saving ? 'Registrando…' : `Cobrar ${money(total)}`}</button>
             <button className="w-full text-xs text-stone-400 mt-2 hover:text-red-600" onClick={() => setLines([])}>Vaciar</button>
           </Card>
-          <Hint>Si una venta online entra mientras cobrás, el sistema avisa antes de confirmar si el stock ya no alcanza. En producción esto lo garantiza una transacción en la base de datos (ver docs de arquitectura).</Hint>
+          <Hint>Si justo se vendió online la última unidad mientras cobrás, el sistema no deja confirmar y te avisa: el stock es uno solo para la tienda y el local.</Hint>
         </div>
       </div>
       {cam && <CameraScanner onScan={onScan} onClose={() => setCam(false)} />}

@@ -1,15 +1,17 @@
+'use client'
 import { useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'next/navigation'
 import { Printer, Search, Plus, Trash2 } from 'lucide-react'
-import { useStore } from '../../store/useStore'
+import { useAdmin } from '../context'
+import { upsertTemplate } from '../actions'
 import { PageHeader, Card, Hint, btnGhost, btnPrimary, input } from '../components/AdminLayout'
 import { Barcode } from '../components/Scanner'
-import { money, uid } from '../../lib/format'
-import type { LabelTemplate } from '../../lib/types'
+import { money, uid } from '@/lib/format'
+import type { LabelTemplate } from '@/lib/types'
 
 export function Labels() {
-  const { products, labelTemplates, upsertTemplate } = useStore()
-  const [sp] = useSearchParams()
+  const { products, labelTemplates } = useAdmin()
+  const sp = useSearchParams()
   const [tpl, setTpl] = useState(labelTemplates[0].id)
   const [queue, setQueue] = useState<{ id: string; n: number }[]>(sp.get('ids') ? sp.get('ids')!.split(',').map(id => ({ id, n: 1 })) : [])
   const [q, setQ] = useState('')
@@ -17,7 +19,7 @@ export function Labels() {
   const t = labelTemplates.find(x => x.id === tpl)!
   const results = useMemo(() => q ? products.filter(p => p.name.toLowerCase().includes(q.toLowerCase()) || p.sku.toLowerCase().includes(q.toLowerCase())).slice(0, 8) : [], [q, products])
   const add = (id: string, n = 1) => setQueue(qu => qu.some(x => x.id === id) ? qu.map(x => x.id === id ? { ...x, n: x.n + n } : x) : [...qu, { id, n }])
-  const items = queue.flatMap(({ id, n }) => { const p = products.find(p => p.id === id)!; return Array.from({ length: n }, () => p) })
+  const items = queue.flatMap(({ id, n }) => { const p = products.find(p => p.id === id); return p ? Array.from({ length: Math.max(0, n) }, () => p) : [] })
   const scale = 3.78 // px por mm aprox a 96dpi
   return (
     <>
@@ -34,7 +36,7 @@ export function Labels() {
             <div className="relative"><Search size={16} className="absolute left-3 top-2.5 text-stone-400" /><input className={input + ' pl-9'} placeholder="Buscar producto" value={q} onChange={e => setQ(e.target.value)} /></div>
             {results.length > 0 && <ul className="mt-2 divide-y">{results.map(p => <li key={p.id} className="py-1.5 flex items-center gap-2 text-sm cursor-pointer hover:bg-stone-50" onClick={() => { add(p.id); setQ('') }}><img src={p.image} className="w-7 h-7 rounded object-cover" alt="" /><span className="flex-1 truncate">{p.name}</span><Plus size={14} /></li>)}</ul>}
             <div className="flex gap-2 mt-3 text-xs"><button className={btnGhost + ' text-xs'} onClick={() => products.filter(p => p.stock > 0).forEach(p => add(p.id, p.stock))}>Todo el stock (1 por unidad)</button><button className={btnGhost + ' text-xs'} onClick={() => setQueue([])}>Vaciar</button></div>
-            <ul className="mt-3 divide-y text-sm">{queue.map(({ id, n }) => { const p = products.find(p => p.id === id)!; return <li key={id} className="py-1.5 flex items-center gap-2"><span className="flex-1 truncate">{p.name}</span><input className="w-14 border rounded px-1 text-right" value={n} onChange={e => setQueue(qu => qu.map(x => x.id === id ? { ...x, n: Number(e.target.value) } : x))} /><button onClick={() => setQueue(qu => qu.filter(x => x.id !== id))} className="text-stone-400 hover:text-red-600"><Trash2 size={14} /></button></li> })}</ul>
+            <ul className="mt-3 divide-y text-sm">{queue.map(({ id, n }) => { const p = products.find(p => p.id === id); if (!p) return null; return <li key={id} className="py-1.5 flex items-center gap-2"><span className="flex-1 truncate">{p.name}</span><input className="w-14 border rounded px-1 text-right" value={n} onChange={e => setQueue(qu => qu.map(x => x.id === id ? { ...x, n: Number(e.target.value) } : x))} /><button onClick={() => setQueue(qu => qu.filter(x => x.id !== id))} className="text-stone-400 hover:text-red-600"><Trash2 size={14} /></button></li> })}</ul>
           </Card>
           <Hint><b>Impresoras:</b> para rollos, una térmica tipo Zebra ZD220, Xprinter o Niimbot B1 (~$80.000 a $250.000). Para hojas A4 autoadhesivas sirve cualquier impresora común. Nunca hay costo mensual.</Hint>
         </div>
@@ -63,7 +65,7 @@ export function Labels() {
             <div className="grid grid-cols-3 gap-2"><label className="text-sm">Ancho mm<input className={input + ' mt-1'} type="number" value={editing.widthMm} onChange={e => setEditing({ ...editing, widthMm: Number(e.target.value) })} /></label><label className="text-sm">Alto mm<input className={input + ' mt-1'} type="number" value={editing.heightMm} onChange={e => setEditing({ ...editing, heightMm: Number(e.target.value) })} /></label><label className="text-sm">Columnas<input className={input + ' mt-1'} type="number" value={editing.cols} onChange={e => setEditing({ ...editing, cols: Number(e.target.value) })} /></label></div>
             <div className="flex gap-4 text-sm">{(['showName', 'showPrice', 'showSku'] as const).map(k => <label key={k} className="flex items-center gap-1"><input type="checkbox" checked={editing[k]} onChange={e => setEditing({ ...editing, [k]: e.target.checked })} />{{ showName: 'Nombre', showPrice: 'Precio', showSku: 'SKU' }[k]}</label>)}</div>
             <label className="text-sm block">Descripción<input className={input + ' mt-1'} value={editing.description} onChange={e => setEditing({ ...editing, description: e.target.value })} /></label>
-            <div className="flex justify-end gap-2"><button className={btnGhost} onClick={() => setEditing(null)}>Cancelar</button><button className={btnPrimary} onClick={() => { upsertTemplate(editing); setTpl(editing.id); setEditing(null) }}>Guardar</button></div>
+            <div className="flex justify-end gap-2"><button className={btnGhost} onClick={() => setEditing(null)}>Cancelar</button><button className={btnPrimary} onClick={async () => { await upsertTemplate(editing); setTpl(editing.id); setEditing(null) }}>Guardar</button></div>
           </div>
         </div>
       )}

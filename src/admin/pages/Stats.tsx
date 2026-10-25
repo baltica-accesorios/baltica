@@ -1,15 +1,17 @@
+'use client'
 import { useMemo, useState } from 'react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell, LineChart, Line, Legend } from 'recharts'
-import { useStore } from '../../store/useStore'
+import { useAdmin } from '../context'
+import type { Sale } from '@/lib/types'
 import { PageHeader, Card, Stat } from '../components/AdminLayout'
-import { inRange, summary, byDay, topProducts, byCategory, byWeekday, byHour, byPayment } from '../../lib/metrics'
-import { money, moneyShort, pct } from '../../lib/format'
-import { categoryName } from '../../data/categories'
+import { net, inRange, summary, byDay, topProducts, byCategory, byWeekday, byHour, byPayment } from '@/lib/metrics'
+import { money, moneyShort, pct } from '@/lib/format'
+import { categoryName } from '@/data/categories'
 
 const COLORS = ['#1c1917', '#d97706', '#78716c', '#f59e0b', '#a8a29e', '#fbbf24', '#d6d3d1', '#fde68a']
 
-export function Stats() {
-  const { sales, products } = useStore()
+export function Stats({ sales }: { sales: Sale[] }) {
+  const { products } = useAdmin()
   const [days, setDays] = useState(30)
   const now = new Date()
   const from = useMemo(() => { const d = new Date(now); d.setDate(now.getDate() - (days - 1)); d.setHours(0, 0, 0, 0); return d }, [days])
@@ -40,8 +42,8 @@ export function Stats() {
         <Stat label="Días con ventas" value={`${s.days} de ${days}`} sub={`${noSale} días sin vender · mejor día ${bestDay?.label} (${moneyShort(bestDay ? bestDay.online + bestDay.local : 0)})`} />
       </div>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <Stat label="Mostrador" value={moneyShort(local.reduce((a, x) => a + x.total, 0))} sub={`${local.length} ventas · ${pct(s.revenue ? local.reduce((a, x) => a + x.total, 0) / s.revenue : 0)} del total`} />
-        <Stat label="Tienda online" value={moneyShort(online.reduce((a, x) => a + x.total, 0))} sub={`${online.length} ventas · ${pct(s.revenue ? online.reduce((a, x) => a + x.total, 0) / s.revenue : 0)} del total`} />
+        <Stat label="Mostrador" value={moneyShort(local.reduce((a, x) => a + net(x), 0))} sub={`${local.length} ventas · ${pct(s.revenue ? local.reduce((a, x) => a + net(x), 0) / s.revenue : 0)} del total`} />
+        <Stat label="Tienda online" value={moneyShort(online.reduce((a, x) => a + net(x), 0))} sub={`${online.length} ventas · ${pct(s.revenue ? online.reduce((a, x) => a + net(x), 0) / s.revenue : 0)} del total`} />
         <Stat label="Promedio por día" value={moneyShort(s.revenue / days)} sub="ventas / días del período" />
         <Stat label="Ganancia por día con ventas" value={moneyShort(s.days ? s.profit / s.days : 0)} tone="good" />
       </div>

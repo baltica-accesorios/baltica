@@ -1,60 +1,74 @@
-# Báltica Accesorios · prototipo de tienda propia + panel de gestión
+# Báltica Accesorios · tienda online + panel de gestión
 
-Prototipo **frontend** (sin backend) para reemplazar la tienda que hoy corre en Empretienda
-([balticaaccesorios.com.ar](https://balticaaccesorios.com.ar)) por un deploy propio que mantiene
-**exactamente la misma tienda de cara al público** y agrega un **panel de administración** con todo lo
-que el negocio pidió: stock unificado online + mostrador, lector de códigos de barras, ventas presenciales,
-costos y ganancias, estadísticas, carga de facturas por foto, etiquetas y migración desde Empretienda.
+Reemplazo de la tienda de Empretienda ([balticaaccesorios.com.ar](https://balticaaccesorios.com.ar)) por un
+sistema propio: la **misma tienda de cara al público**, con **cobro por Mercado Pago**, y un **panel de
+administración** con stock unificado online + mostrador, punto de venta con lector de códigos de barras,
+costos y ganancias, estadísticas, compras (con lectura de facturas por foto opcional), etiquetas y
+migración asistida desde Empretienda.
 
-- Demo: **https://solsolettidev.github.io/baltica/** (tienda) · **https://solsolettidev.github.io/baltica/admin** (panel)
-- Análisis de arquitectura, concurrencia de stock y deploy: [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md)
-- Guía de qué mirar en la demo: [`docs/DEMO.md`](docs/DEMO.md)
+- **Poner la tienda en internet:** [`docs/PUESTA-EN-MARCHA.md`](docs/PUESTA-EN-MARCHA.md) (paso a paso, sin conocimientos técnicos)
+- Arquitectura, concurrencia de stock y decisiones: [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md)
+- Qué mirar del sistema: [`docs/DEMO.md`](docs/DEMO.md)
 
-> Todo lo que se ve funciona de verdad en el navegador (los datos se guardan en `localStorage`).
-> Vender en mostrador descuenta stock que la tienda pública ve al instante, comprar online aparece en
-> el panel, cancelar una venta devuelve stock, etc. Lo único simulado es la lectura de la foto de
-> factura (en producción la hace un modelo de visión) y el asistente de migración.
+## Stack
 
-## Cómo correrlo
+Elegido para que no haya servidores que mantener ni costos fijos, y para que cualquier desarrollador
+pueda tomarlo después sin sorpresas.
+
+| Capa | Elección |
+|---|---|
+| App (tienda + panel + API) | **Next.js 16** (App Router) + React 19 + TypeScript |
+| Base de datos | **PostgreSQL** (Neon en producción) con **Drizzle ORM** y migraciones versionadas en `drizzle/` |
+| Fotos | Guardadas en la misma base y servidas por `/img/[id]` con caché de CDN: un solo lugar para respaldar |
+| Pagos | **Mercado Pago Checkout Pro** + webhook firmado (`/api/mercadopago/webhook`) |
+| Hosting | **Netlify** (plan gratuito, permite uso comercial). El código no depende de Netlify: corre en cualquier lugar con Node |
+| Login | Sesiones propias en la base (cookie httpOnly, contraseñas con scrypt). Roles: dueña / vendedora |
+| IA (opcional) | Claude, con la cuenta de Anthropic de Báltica (clave en Configuración) |
+| Estilos | CSS propio que replica la plantilla de Empretienda (tienda) + Tailwind 4 (panel) |
+
+## Desarrollo local
 
 ```bash
+cp .env.example .env
+docker compose up -d        # Postgres local en el puerto 5433
 pnpm install
-pnpm dev        # http://localhost:5173
-pnpm build      # genera dist/ (GH_PAGES=1 pnpm build para la demo en GitHub Pages)
+pnpm db:migrate             # crea las tablas
+pnpm db:seed --demo         # productos reales + 120 días de ventas ficticias (sin --demo: sólo productos)
+pnpm dev                    # http://localhost:3000  ·  panel en /admin (el primer ingreso crea la cuenta de la dueña)
 ```
+
+Para probar Mercado Pago en local alcanza con `MP_ACCESS_TOKEN=TEST-...` en `.env`: al volver del pago,
+la página `/checkout/resultado` consulta el pago y concilia la venta aunque el webhook no llegue a localhost.
+
+Cambios en la base: editar `src/db/schema.ts`, correr `pnpm db:generate` y commitear el SQL generado en `drizzle/`.
+Netlify aplica las migraciones en cada deploy.
 
 ## Estructura
 
 ```
 src/
-  storefront/      Tienda pública. Réplica de la plantilla "Eris" de Empretienda (Lato, negro/blanco, mismas URLs).
-    components/    Layout (header, menú, buscador, footer, WhatsApp), CartDrawer, ProductCard
-    pages/         Home, Category (listado + filtros + orden), Product, Checkout, páginas de info
-  admin/           Panel de gestión en /admin (mismo dominio).
-    components/    AdminLayout (sidebar), Scanner (lector USB + cámara + generador de código de barras)
-    pages/         Dashboard, POS, Sales, Products, Stock, Scanner, Purchases, Labels, Stats, Migration, Settings
-  store/           Estado global (zustand + persist). seed.ts genera 120 días de ventas realistas.
-  data/            Árbol de categorías real de la tienda, banners, logo.
-  lib/             Tipos de dominio, formato de moneda/fechas, EAN-13, métricas.
-  seed_products.json   163 productos reales (nombre, imagen, precio, categoría) con costo, stock y código generados.
+  app/
+    (tienda)/            Rutas públicas. Mismas URLs que Empretienda ([...slug] resuelve info / categoría / producto)
+    admin/(panel)/       Panel (requiere sesión). admin/login: ingreso y alta de la primera cuenta
+    api/mercadopago/     Webhook de pagos
+    img/[id]/            Fotos guardadas en la base
+  storefront/            Componentes y páginas de la tienda, carrito (en el navegador) y acción de checkout
+  admin/                 Pantallas del panel, contexto de datos y server actions (actions.ts, migration-actions.ts)
+  lib/
+    stock.ts             Núcleo del stock unificado: toda venta/ajuste pasa por acá, en transacción
+    mercadopago.ts       Preferencias, validación del webhook y conciliación idempotente de pagos
+    data.ts              Lecturas de la base → tipos del dominio
+    ai.ts                Lectura de facturas y mapeo de columnas con Claude (opcional)
+    auth.ts, metrics.ts, sheets.ts, format.ts, types.ts
+  db/                    Esquema Drizzle y conexión
+  data/categories.ts     Árbol de categorías y banners de la tienda
+drizzle/                 Migraciones SQL
+scripts/seed.ts          Carga inicial (productos actuales) y datos de demo
 ```
 
-## Qué hace cada módulo del panel
+## Reglas de stock (resumen)
 
-| Módulo | Qué resuelve | Detalle |
-|---|---|---|
-| **Vender (mostrador)** | Carga de ventas presenciales en segundos | Escaneo con lector o cámara, búsqueda por nombre, variantes, descuento, medio de pago, vendedora, vuelto, ticket imprimible. Bloquea si no hay stock. |
-| **Ventas** | Online + mostrador en una lista | Estados (pendiente, pagada, enviada, entregada, cancelada), ganancia por venta, exportar CSV. Cancelar devuelve stock. |
-| **Productos** | ABM con costo y código de barras | Mismos campos que Empretienda + costo, stock mínimo, SKU, EAN-13. Precio sugerido por regla de ganancia. Aumento masivo por %. |
-| **Stock** | Un solo stock para los dos canales | Alertas, cobertura en días, valorización a costo y a venta, historial de movimientos (quién/cuándo/por qué), conteo físico escaneando. |
-| **Escáner** | Consultar un producto al instante | Ficha con precio, stock y margen. Lector USB/Bluetooth (modo teclado) o cámara del celular. |
-| **Compras y facturas** | Carga de compras, con lectura por foto **opcional** | Lee renglones con Claude (modelo de visión), matchea con el catálogo entendiendo abreviaturas, actualiza costo, calcula el precio final con el % de ganancia de cada producto, suma stock. La IA usa la cuenta de Claude (Anthropic) del cliente, pago por uso; sin ella se carga a mano. |
-| **Etiquetas** | Códigos de barras con precio | Plantillas por formato (rollo 22×12, 50×25, hoja A4, sin precio), editables. Impresión desde el navegador. |
-| **Estadísticas** | Todas las métricas del negocio | Ventas, ganancia neta, margen, ticket, días con venta, por canal, por categoría, por día de semana, por hora, medios de pago, ranking de productos. Comparado contra el período anterior. |
-| **Migrar Empretienda** | Traer productos, imágenes, clientes y ventas | Asistente en 4 pasos a partir de los exports de Empretienda. Plan del día del cambio de dominio. |
-| **Configuración** | Reglas del negocio | % de ganancia por defecto, redondeo, umbral de stock bajo, vendedoras. |
-
-## Stack
-
-React 19 + TypeScript + Vite · react-router · zustand · Tailwind 4 (sólo en el panel; la tienda usa CSS propio que
-replica la plantilla) · recharts · @zxing/browser (cámara) · jsbarcode (etiquetas).
+- Mostrador descuenta al cobrar. Transferencia/efectivo online reservan al confirmar el pedido. Mercado Pago descuenta al aprobarse el pago.
+- `UPDATE ... SET stock = stock - n WHERE stock >= n`: nunca queda negativo y dos cobros simultáneos de la última unidad no pueden pasar los dos.
+- Cada cambio de stock deja un movimiento (quién, cuándo, por qué). Cancelar una venta devuelve lo descontado, una sola vez.
+- Si Mercado Pago aprueba un pago cuyo stock ya se vendió en el local, la venta queda **a resolver** y se avisa en el inicio del panel.

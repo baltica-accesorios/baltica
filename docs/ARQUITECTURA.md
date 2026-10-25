@@ -1,6 +1,6 @@
 # Arquitectura propuesta para Báltica
 
-Este documento acompaña al prototipo frontend. Explica cómo se construiría el sistema real, cómo se
+Este documento explica cómo está construido el sistema, cómo se
 resuelve el problema central (un solo stock para la tienda online y el mostrador, sin vender lo que no
 hay), dónde conviene hospedarlo sin pagar mensualidades y qué más se le puede dar al dueño de la tienda.
 
@@ -40,12 +40,12 @@ en el mismo proyecto como rutas API. Esto simplifica el deploy, el dominio, el H
 
 | Capa | Elección | Por qué |
 |---|---|---|
-| Frontend | **Next.js 15 + React + TypeScript** | SSR para la tienda, SPA para el panel, un solo repo. El prototipo ya está en React, se migra casi 1:1. |
+| Frontend | **Next.js 16 + React + TypeScript** | SSR para la tienda, panel detrás de login, API en el mismo proyecto. |
 | Estilos | CSS propio para la tienda (réplica Eris) + Tailwind para el panel | La tienda tiene que ser pixel-perfect con la actual; el panel necesita velocidad de desarrollo. |
 | Base de datos | **PostgreSQL** | Transacciones serias para el stock, gratis, corre en cualquier lado. SQLite sería suficiente en volumen pero complica el backup y la concurrencia. |
-| ORM | Drizzle o Prisma | Migraciones versionadas, tipos compartidos con el frontend. |
+| ORM | **Drizzle** | Migraciones SQL versionadas en `drizzle/`, tipos compartidos con el frontend, sin motor binario aparte. |
 | Auth | Sesión con cookie httpOnly, roles `dueña` / `vendedora` | Sin servicio externo. Las vendedoras pueden vender y ajustar stock, no ver costos ni estadísticas. |
-| Imágenes | Storage S3-compatible (Cloudflare R2: 10 GB gratis) | Las 163 imágenes actuales pesan < 100 MB. |
+| Imágenes | En la misma base, servidas por `/img/[id]` con caché de CDN | Las fotos se achican en el navegador antes de subir (WebP, ~100 KB). 163 productos ≈ 20 MB. |
 | Pagos | Mercado Pago Checkout Pro (webhook) + transferencia | Es lo que ya usan. Sin comisión extra del sistema. |
 | Envíos | Correo Argentino / Andreani vía API o tabla de precios manual | Empretienda hoy calcula por CP; se replica. |
 | Lectura de facturas (**opcional**) | Claude (modelo de visión) con el catálogo como contexto, vía la **cuenta de Anthropic del cliente** | Se activa desde Configuración cargando su API key. Pago por uso a Anthropic: una factura cuesta centavos de dólar, sin abono. Si no se activa, las compras se cargan a mano con el mismo formulario. |
@@ -116,11 +116,14 @@ esto es gratis y suficiente para el volumen de la tienda (decenas de ventas por 
 | Internet cortado en el local | El POS guarda la venta en cola local (IndexedDB) y la sincroniza al volver. Como el mostrador es físico, la venta ya ocurrió; el riesgo es vender online en el medio, que se resuelve como el caso 2. Es un modo degradado, no el normal. |
 | Stock en 0 en la web | El producto se muestra "Sin stock" (igual que hoy), no se oculta: sigue posicionando en Google. |
 
-### Cómo lo refleja el prototipo
+### Cómo está implementado
 
-El POS y el checkout verifican stock antes de confirmar y bloquean la venta si no alcanza; cancelar una
-venta devuelve stock vía un movimiento `devolucion`. Como es frontend puro, no hay lock; el documento
-describe cómo se agrega en el backend sin cambiar la experiencia.
+`src/lib/stock.ts` hace el descuento con un único `UPDATE ... WHERE stock >= n` dentro de una transacción
+(el UPDATE ya toma el lock de la fila; no hace falta un `SELECT ... FOR UPDATE` aparte) y una restricción
+`CHECK (stock >= 0)` en la tabla como última red. Las ventas de varios productos bloquean las filas en orden
+de id para evitar deadlocks. `src/lib/mercadopago.ts` concilia cada pago consultándolo a la API de Mercado
+Pago (nunca confía en la URL ni en el cuerpo del webhook), bloqueando la venta con `FOR UPDATE` para que el
+webhook y la vuelta del cliente no la procesen dos veces. La cola offline del POS queda como mejora futura.
 
 ## 5. Lector de códigos de barras
 
@@ -146,15 +149,16 @@ El criterio es: costo cero o casi cero, HTTPS, un solo lugar para todo, backups.
 | **Vercel (front) + Neon (Postgres) + R2 (imágenes)** | USD 0 en free tier | Cero mantenimiento, escala sola, deploy automático desde GitHub. | Tres proveedores; el free tier de Neon pausa la base si no se usa (se despierta en 1 s). |
 | Cloudflare Pages + D1 + R2 | USD 0 | Todo en Cloudflare. | D1 (SQLite) tiene límites y menos garantías transaccionales. |
 
-**Recomendación:** empezar con **Vercel + Neon + R2** (costo cero, sin servidores que cuidar, HTTPS y
-dominio en 5 minutos) y, si el volumen crece o se quiere independencia total, mover a un VPS: el código
-es el mismo porque es Next.js + Postgres estándar. El único gasto fijo real es el dominio (~$15k/año),
-que ya tienen.
+**Elección final: Netlify + Neon.** El plan gratuito de Vercel prohíbe el uso comercial (una tienda lo es),
+así que se usa **Netlify** (gratis, permite uso comercial) para la app y **Neon** (Postgres gratis) para la base.
+Las fotos se guardan en la misma base (servidas con caché de CDN), así no hace falta un tercer proveedor
+de almacenamiento y la copia de seguridad es una sola. El código es Next.js + Postgres estándar: se puede
+mover a un VPS o a otro hosting sin reescribir nada. Guía paso a paso: [`PUESTA-EN-MARCHA.md`](PUESTA-EN-MARCHA.md).
 
 Costos variables únicos: la lectura de facturas por foto, que es opcional y va contra la cuenta de
-Anthropic del cliente (~$5 a $20 por factura según el modelo), y la comisión de Mercado Pago, que ya pagan hoy.
+Anthropic del cliente (centavos de dólar por factura), y la comisión de Mercado Pago, que ya pagan hoy.
 
-Backups: `pg_dump` diario a R2 (gratis) + export CSV mensual que la dueña se guarda. Las ventas y los
+Backups: historia automática de Neon + botón *Descargar copia de seguridad* en Configuración + export CSV de ventas. Las ventas y los
 movimientos de stock nunca se borran físicamente.
 
 ## 7. Migración desde Empretienda
