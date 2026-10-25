@@ -81,14 +81,45 @@ cosa o devolver el dinero desde Mercado Pago (la devolución vuelve a dejar todo
 
 ## 5. Dominio balticaaccesorios.com.ar
 
+**Cómo está hoy** (revisado el 25/10/2026):
+
+- El dominio está registrado en **NIC Argentina** a nombre del CUIT 27420583538 (vence el 02/09/2027).
+- Los servidores DNS son los de **Empretienda** (`ns1` a `ns4.empretienda.net`): Empretienda administra todos los registros.
+- El **email** de Báltica usa **Zoho Mail** y depende de esos registros. **Si se cambia el DNS sin copiarlos, se corta el correo.**
+
 Hacerlo recién cuando la tienda nueva esté revisada y la migración hecha (ver *Migrar Empretienda* en el panel).
 
-1. Netlify → *Domain management* → *Add a domain* → `balticaaccesorios.com.ar`.
-2. Netlify muestra qué registros cargar. Entrar a donde está registrado el dominio (NIC Argentina /
-   el proveedor DNS que usen) y cargar esos registros (o cambiar los servidores DNS por los de Netlify).
-3. El certificado HTTPS se activa solo.
-4. Cambiar la variable `SITE_URL` a `https://balticaaccesorios.com.ar`, la URL del webhook de Mercado
-   Pago al dominio nuevo, y volver a publicar.
+### Paso 1: preparar el DNS en Netlify (sin cortar nada todavía)
+
+1. Netlify → *Domain management* → *Add a domain* → `balticaaccesorios.com.ar` → elegir **Netlify DNS**.
+2. Antes de seguir, en *DNS records* cargar los registros del email, **tal cual están hoy**:
+
+   | Tipo | Nombre | Valor | Prioridad |
+   |---|---|---|---|
+   | MX | `@` | `mx.zoho.com` | 10 |
+   | MX | `@` | `mx2.zoho.com` | 20 |
+   | MX | `@` | `mx3.zoho.com` | 50 |
+   | TXT | `@` | `v=spf1 include:zohomail.com ~all` | |
+   | TXT | `@` | `zoho-verification=zb10755692.zmverify.zoho.com` | |
+   | TXT | `zmail._domainkey` | `v=DKIM1;k=rsa;p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC6CaxCOc2E7JkrEvrSo3s6aLMb5fzfCu0ZoiN8iVsHKFeteEFruM8NLRXwU6cTvhrLXW9hC9vJ21cSeObp9xBaD3Aq2QKAek2mlJHcIeM7Bg5oqoai+zY9ukZpApiiQpVpTLzbFk6T5Dh0uSY2rdNAMXjfTM7zXy/E5Hat25JASwIDAQAB` | |
+
+   (Si se configuró Resend, agregar también los registros que muestra Resend.)
+3. Netlify muestra **4 servidores DNS** propios (del estilo `dns1.p0X.nsone.net`). Anotarlos.
+
+### Paso 2: el cambio (día D)
+
+1. Entrar a **nic.ar** con la **Clave Fiscal** del titular (CUIT 27420583538) → *Mis dominios* → `balticaaccesorios.com.ar` → *Delegar*.
+2. Borrar los 4 servidores de Empretienda y poner los 4 de Netlify. Confirmar.
+3. La propagación tarda entre minutos y unas horas. Mientras tanto, algunos ven la tienda vieja y otros la nueva: las dos funcionan.
+4. Netlify activa el certificado HTTPS solo (*Domain management* → *HTTPS*). También agregar `www.balticaaccesorios.com.ar` para que redirija al dominio principal.
+5. Cambiar la variable `SITE_URL` a `https://balticaaccesorios.com.ar` y volver a publicar.
+6. En Mercado Pago, cambiar la URL del webhook a `https://balticaaccesorios.com.ar/api/mercadopago/webhook`.
+
+### Paso 3: comprobar y dar de baja
+
+- Mandar un mail a la casilla de Báltica desde otra cuenta y responderlo: confirma que Zoho sigue andando.
+- Hacer una compra de prueba en el dominio.
+- Recién entonces pausar la tienda en Empretienda y dar de baja el plan.
 
 ## 6. Claude (opcional): facturas por foto y migración asistida
 
