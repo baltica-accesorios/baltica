@@ -34,7 +34,7 @@ export function Products() {
         <div className="flex flex-wrap gap-2 mb-4 items-center">
           <div className="relative flex-1 min-w-60"><Search size={16} className="absolute left-3 top-2.5 text-stone-400" /><input className={input + ' pl-9'} placeholder="Nombre, SKU o código de barras" value={q} onChange={e => setQ(e.target.value)} /></div>
           <select className={input + ' w-auto'} value={cat} onChange={e => setCat(e.target.value)}><option value="">Todas las categorías</option>{CATEGORIES.map(c => <option key={c.slug} value={c.slug}>{c.name}</option>)}</select>
-          {sel.length > 0 && <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 text-sm"><Percent size={14} /> {sel.length} seleccionados · aumentar <input className="w-16 border rounded px-1" placeholder="%" value={bulk} onChange={e => setBulk(e.target.value)} /> % <button className={btnPrimary + ' py-1'} disabled={busy || !Number(bulk)} onClick={async () => { if (!window.confirm(`¿Cambiar ${Number(bulk) > 0 ? '+' : ''}${bulk}% el precio de ${sel.length} productos?`)) return; setBusy(true); const r = await bulkPriceUpdate(sel, Number(bulk)); setBusy(false); if (!r.ok) { window.alert(r.error); return } setSel([]); setBulk('') }}>Aplicar</button></div>}
+          {sel.length > 0 && <div className="w-full sm:w-auto flex flex-wrap items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 text-sm"><Percent size={14} /> {sel.length} seleccionados · aumentar <input className="w-16 border rounded px-1" placeholder="%" value={bulk} onChange={e => setBulk(e.target.value)} /> % <button className={btnPrimary + ' py-1'} disabled={busy || !Number(bulk)} onClick={async () => { if (!window.confirm(`¿Cambiar ${Number(bulk) > 0 ? '+' : ''}${bulk}% el precio de ${sel.length} productos?`)) return; setBusy(true); const r = await bulkPriceUpdate(sel, Number(bulk)); setBusy(false); if (!r.ok) { window.alert(r.error); return } setSel([]); setBulk('') }}>Aplicar</button></div>}
           {sel.length > 0 && <div className="w-full flex flex-wrap items-center gap-2 bg-stone-900 text-white rounded-lg px-3 py-2 text-sm">
             <span className="font-medium">Oferta para {sel.length}:</span>
             <span>−<input className="w-12 bg-white text-stone-900 rounded px-1 mx-1" value={offer} onChange={e => setOffer(e.target.value)} inputMode="numeric" aria-label="Porcentaje de descuento" />%</span>
@@ -44,7 +44,29 @@ export function Products() {
             <span className="text-xs text-stone-400 w-full">Vacío el &quot;hasta&quot; = sin fecha de fin. Al vencer, vuelve solo al precio normal.</span>
           </div>}
         </div>
-        <div className="overflow-auto">
+        {/* Celular: tarjetas */}
+        <div className="md:hidden">
+          <label className="flex items-center gap-2 text-xs text-stone-500 pb-2 border-b"><input type="checkbox" onChange={e => setSel(e.target.checked ? list.map(p => p.id) : [])} /> Seleccionar todos ({list.length})</label>
+          <ul className="divide-y">{list.map(p => (
+            <li key={p.id} className="py-3 flex items-center gap-3">
+              <input type="checkbox" checked={sel.includes(p.id)} onChange={() => toggle(p.id)} aria-label={`Seleccionar ${p.name}`} />
+              <Link href={`/admin/productos/${p.id}`} className="flex items-center gap-3 flex-1 min-w-0">
+                <img src={p.image} className="w-12 h-12 rounded object-cover shrink-0" alt="" />
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm leading-tight line-clamp-2">{p.name}{p.active === false && <span className="ml-1 text-[10px] bg-stone-200 text-stone-600 rounded-full px-1.5 py-0.5">oculto</span>}</div>
+                  <div className="text-xs text-stone-500 mt-0.5 flex flex-wrap gap-x-2">
+                    <span className="font-semibold text-stone-900">{moneyShort(offerActive(p) ? p.offerPrice! : p.price)}</span>
+                    {offerActive(p) && <span className="text-amber-700 font-semibold">{offerPct(p)}% OFF</span>}
+                    <span>costo {moneyShort(p.cost)}</span>
+                    <span className="text-emerald-700">{pct((p.price - p.cost) / p.price)}</span>
+                  </div>
+                </div>
+              </Link>
+              <span className={`px-2 py-0.5 rounded-full text-xs shrink-0 ${p.stock === 0 ? 'bg-red-100 text-red-700' : p.stock <= (p.minStock ?? settings.lowStockThreshold) ? 'bg-amber-100 text-amber-800' : 'bg-stone-100'}`}>{p.stock} u.</span>
+            </li>
+          ))}</ul>
+        </div>
+        <div className="overflow-auto hidden md:block">
           <table className="w-full text-sm">
             <thead className="text-xs uppercase text-stone-500 text-left"><tr><th className="pb-2"><input type="checkbox" onChange={e => setSel(e.target.checked ? list.map(p => p.id) : [])} /></th><th className="pb-2">Producto</th><th className="pb-2">Categoría</th><th className="pb-2">SKU / Código</th><th className="pb-2 pl-3 text-right">Costo</th><th className="pb-2 pl-3 text-right">Precio</th><th className="pb-2 pl-3 text-right">Margen</th><th className="pb-2 pl-3 text-right">Stock</th><th /></tr></thead>
             <tbody className="divide-y">{list.map(p => (

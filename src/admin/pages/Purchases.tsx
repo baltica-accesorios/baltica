@@ -20,8 +20,23 @@ export function Purchases({ purchases }: { purchases: Purchase[] }) {
       </PageHeader>
       {!ai && <div className="mb-4"><Hint><b>La lectura de facturas por foto está apagada.</b> Usa la cuenta de Claude (Anthropic) de Báltica y se paga por uso, unos centavos por factura, sin abono. Se activa en <Link href="/admin/configuracion" className="underline">Configuración</Link> cargando la clave. Mientras tanto, las compras se cargan a mano con el mismo formulario.</Hint></div>}
       <Card>
+        <ul className="md:hidden divide-y">
+          {purchases.length === 0 && <li className="py-6 text-center text-stone-400 text-sm">Todavía no cargaste compras.</li>}
+          {purchases.map(p => (
+            <li key={p.id} className="py-3 flex items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium truncate">{p.supplier}</div>
+                <div className="text-xs text-stone-500">{dateAR(p.date)}{p.invoiceNumber ? ` · ${p.invoiceNumber}` : ''}</div>
+                <div className="text-xs text-stone-500">{p.lines.length} productos · {p.lines.reduce((a, l) => a + l.qty, 0)} u. · <b className="text-stone-900">{moneyShort(p.total)}</b></div>
+              </div>
+              <Link href={`/admin/compras/nueva?desde=${p.id}`} className={btnGhost + ' text-xs py-1.5 shrink-0'}><RotateCcw size={14} /> Repetir</Link>
+            </li>
+          ))}
+        </ul>
+        <div className="hidden md:block overflow-auto">
         <table className="w-full text-sm"><thead className="text-xs uppercase text-stone-500 text-left"><tr><th className="pb-2">Fecha</th><th className="pb-2">Proveedor</th><th className="pb-2">Factura</th><th className="pb-2">Renglones</th><th className="pb-2 text-right">Total</th><th className="pb-2">Origen</th><th className="pb-2">Estado</th><th /></tr></thead>
           <tbody className="divide-y">{purchases.length === 0 && <tr><td colSpan={8} className="py-6 text-center text-stone-400">Todavía no cargaste compras.</td></tr>}{purchases.map(p => <tr key={p.id} className="hover:bg-stone-50"><td className="py-2">{dateAR(p.date)}</td><td className="py-2 font-medium">{p.supplier}</td><td className="py-2 font-mono text-xs">{p.invoiceNumber}</td><td className="py-2">{p.lines.length} productos · {p.lines.reduce((a, l) => a + l.qty, 0)} u.</td><td className="py-2 text-right">{moneyShort(p.total)}</td><td className="py-2 text-xs">{p.source === 'foto' ? 'Foto' : p.source === 'repetida' ? 'Repetida' : 'Manual'}</td><td className="py-2"><span className={`text-[11px] px-2 py-0.5 rounded-full ${p.status === 'confirmada' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{p.status}</span></td><td className="py-2 text-right"><Link href={`/admin/compras/nueva?desde=${p.id}`} className={btnGhost + ' text-xs py-1'} title="Cargar una compra nueva con los mismos productos"><RotateCcw size={14} /> Repetir</Link></td></tr>)}</tbody></table>
+        </div>
         <p className="text-xs text-stone-500 mt-3">¿Volviste a comprar lo mismo? <b>Repetir</b> arma la compra nueva con los mismos productos y sólo cambiás cantidades y costos.</p>
       </Card>
     </>
@@ -84,6 +99,11 @@ export function NewPurchase({ purchases }: { purchases: Purchase[] }) {
     setStep(2)
   }
   useEffect(() => { const d = sp.get('desde'); if (d) reuse(d) }, [])  // eslint-disable-line react-hooks/exhaustive-deps
+  const upd = (i: number, patch: Partial<PurchaseLine>) => setLines(ls => ls.map((x, k) => k === i ? { ...x, ...patch } : x))
+  const pickProduct = (i: number, id: string) => { const p = products.find(p => p.id === id); const pct = p?.markupPct ?? settings.defaultMarkup; setLines(ls => ls.map((x, k) => k === i ? { ...x, productId: p?.id, matched: !!p, barcode: p?.barcode, markupPct: pct, suggestedPrice: price(x.unitCost, pct) } : x)) }
+  const setCost = (i: number, v: number) => setLines(ls => ls.map((x, k) => k === i ? { ...x, unitCost: v, suggestedPrice: price(v, x.markupPct) } : x))
+  const setPct = (i: number, v: number) => setLines(ls => ls.map((x, k) => k === i ? { ...x, markupPct: v, suggestedPrice: price(x.unitCost, v) } : x))
+  const removeLine = (i: number) => setLines(ls => ls.filter((_, k) => k !== i))
   const total = lines.reduce((a, l) => a + l.qty * l.unitCost, 0)
   const confirm = async () => {
     setSaving(true); setErr('')
@@ -135,19 +155,31 @@ export function NewPurchase({ purchases }: { purchases: Purchase[] }) {
           <div className="grid sm:grid-cols-3 gap-3 mb-3"><label className="text-sm">Proveedor<input className={input + ' mt-1'} value={supplier} onChange={e => setSupplier(e.target.value)} /></label><label className="text-sm">N° factura (opcional)<input className={input + ' mt-1'} value={invoice} onChange={e => setInvoice(e.target.value)} placeholder="B-0001-00004513" /></label><label className="text-sm">Fecha<input type="date" className={input + ' mt-1'} value={date} onChange={e => setDate(e.target.value)} /></label></div>
           {source === 'repetida' && <div className="mb-3"><Hint>Vienen los productos, cantidades y costos de la compra anterior. Corregí <b>cantidad</b> y <b>costo unitario</b> en cada renglón; si algo no vino esta vez, sacalo con la ✕. El % de ganancia es el actual de cada producto.</Hint></div>}
           <Hint>Revisá cada renglón. Los grises necesitan que elijas el producto o lo crees. El <b>% de ganancia</b> es el de cada producto (o el general si es nuevo): tocalo y el precio final se recalcula al instante.</Hint>
-          <div className="overflow-auto mt-3"><table className="w-full text-sm">
+          {/* Celular: un renglón por tarjeta, con cada dato rotulado */}
+          <ul className="md:hidden mt-3 space-y-3">{lines.map((l, i) => { const p = products.find(p => p.id === l.productId); return (
+            <li key={i} className={`rounded-lg border p-3 space-y-2 ${l.matched ? 'bg-white' : 'bg-stone-50 border-amber-300'}`}>
+              <div className="flex items-start gap-2"><input className="flex-1 min-w-0 font-mono text-xs bg-transparent border-b border-dashed py-1" value={l.description} onChange={e => upd(i, { description: e.target.value })} placeholder="Descripción en la factura" aria-label="Descripción" /><button className="text-stone-400 hover:text-red-600 px-1" aria-label="Quitar renglón" onClick={() => removeLine(i)}>✕</button></div>
+              <select className={input + ' text-sm'} value={l.productId ?? ''} onChange={e => pickProduct(i, e.target.value)} aria-label="Producto"><option value="">— elegir producto —</option>{products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
+              <div className="grid grid-cols-3 gap-2">
+                <label className="text-[11px] text-stone-500">Cantidad<input className={input + ' mt-0.5 text-right'} inputMode="numeric" value={l.qty} onChange={e => upd(i, { qty: Number(e.target.value) })} /></label>
+                <label className="text-[11px] text-stone-500">Costo unit.<input className={input + ' mt-0.5 text-right'} inputMode="numeric" value={l.unitCost} onChange={e => setCost(i, Number(e.target.value))} /></label>
+                <label className="text-[11px] text-stone-500">% ganancia<input className={input + ' mt-0.5 text-right'} inputMode="numeric" value={l.markupPct} onChange={e => setPct(i, Number(e.target.value))} /></label>
+              </div>
+              <div className="flex justify-between text-xs text-stone-500"><span>{p ? <>antes: costo {moneyShort(p.cost)}{l.unitCost > p.cost && <span className="text-amber-600"> ▲</span>} · precio {moneyShort(p.price)}</> : 'Sin vincular: se ignora'}</span><span>Precio final <b className={`text-sm ${p && l.suggestedPrice > p.price ? 'text-amber-700' : 'text-stone-900'}`}>{moneyShort(l.suggestedPrice)}</b></span></div>
+            </li>) })}</ul>
+          <div className="overflow-auto mt-3 hidden md:block"><table className="w-full text-sm">
             <thead className="text-xs uppercase text-stone-500 text-left"><tr><th className="pb-2">Leído en la factura</th><th className="pb-2">Producto en el sistema</th><th className="pb-2 text-right">Cant.</th><th className="pb-2 text-right">Costo unit.</th><th className="pb-2 text-right">Costo anterior</th><th className="pb-2 text-right">Precio actual</th><th className="pb-2 text-right">% ganancia</th><th className="pb-2 text-right">Precio final</th><th /></tr></thead>
             <tbody className="divide-y">{lines.map((l, i) => { const p = products.find(p => p.id === l.productId); const up = p && l.unitCost > p.cost; return (
               <tr key={i} className={l.matched ? '' : 'bg-stone-50'}>
-                <td className="py-2 font-mono text-xs"><input className="bg-transparent w-full" value={l.description} onChange={e => setLines(ls => ls.map((x, k) => k === i ? { ...x, description: e.target.value } : x))} /></td>
-                <td className="py-2"><select className={input + ' py-1 text-xs'} value={l.productId ?? ''} onChange={e => { const p = products.find(p => p.id === e.target.value); const pct = p?.markupPct ?? settings.defaultMarkup; setLines(ls => ls.map((x, k) => k === i ? { ...x, productId: p?.id, matched: !!p, barcode: p?.barcode, markupPct: pct, suggestedPrice: price(x.unitCost, pct) } : x)) }}><option value="">— elegir / crear nuevo —</option>{products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></td>
-                <td className="py-2 text-right"><input className="w-14 text-right border rounded px-1" value={l.qty} onChange={e => setLines(ls => ls.map((x, k) => k === i ? { ...x, qty: Number(e.target.value) } : x))} /></td>
-                <td className="py-2 text-right"><input className="w-20 text-right border rounded px-1" value={l.unitCost} onChange={e => setLines(ls => ls.map((x, k) => k === i ? { ...x, unitCost: Number(e.target.value), suggestedPrice: price(Number(e.target.value), x.markupPct) } : x))} /></td>
+                <td className="py-2 font-mono text-xs"><input className="bg-transparent w-full" value={l.description} onChange={e => upd(i, { description: e.target.value })} /></td>
+                <td className="py-2"><select className={input + ' py-1 text-xs'} value={l.productId ?? ''} onChange={e => pickProduct(i, e.target.value)}><option value="">— elegir / crear nuevo —</option>{products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></td>
+                <td className="py-2 text-right"><input className="w-14 text-right border rounded px-1" value={l.qty} onChange={e => upd(i, { qty: Number(e.target.value) })} /></td>
+                <td className="py-2 text-right"><input className="w-20 text-right border rounded px-1" value={l.unitCost} onChange={e => setCost(i, Number(e.target.value))} /></td>
                 <td className="py-2 text-right text-stone-500">{p ? moneyShort(p.cost) : '—'}{up && <span className="text-amber-600 text-xs ml-1">▲</span>}</td>
                 <td className="py-2 text-right text-stone-500">{p ? moneyShort(p.price) : '—'}</td>
-                <td className="py-2 text-right"><div className="inline-flex items-center gap-1"><input className="w-14 text-right border rounded px-1" value={l.markupPct} onChange={e => setLines(ls => ls.map((x, k) => k === i ? { ...x, markupPct: Number(e.target.value), suggestedPrice: price(x.unitCost, Number(e.target.value)) } : x))} /><span className="text-stone-400">%</span></div>{p && p.markupPct != null && p.markupPct !== l.markupPct && <div className="text-[10px] text-stone-400">antes {p.markupPct}%</div>}</td>
+                <td className="py-2 text-right"><div className="inline-flex items-center gap-1"><input className="w-14 text-right border rounded px-1" value={l.markupPct} onChange={e => setPct(i, Number(e.target.value))} /><span className="text-stone-400">%</span></div>{p && p.markupPct != null && p.markupPct !== l.markupPct && <div className="text-[10px] text-stone-400">antes {p.markupPct}%</div>}</td>
                 <td className="py-2 text-right"><span className={`font-medium ${p && l.suggestedPrice > p.price ? 'text-amber-700' : ''}`}>{moneyShort(l.suggestedPrice)}</span>{p && l.suggestedPrice !== p.price && <div className="text-[10px] text-stone-400">{l.suggestedPrice > p.price ? '▲' : '▼'} {moneyShort(Math.abs(l.suggestedPrice - p.price))}</div>}</td>
-                <td className="py-2 text-right"><button className="text-stone-400 hover:text-red-600 text-xs" onClick={() => setLines(ls => ls.filter((_, k) => k !== i))}>✕</button></td>
+                <td className="py-2 text-right"><button className="text-stone-400 hover:text-red-600 text-xs" onClick={() => removeLine(i)}>✕</button></td>
               </tr>) })}</tbody></table></div>
           <button className={btnGhost + ' mt-3 text-xs'} onClick={() => setLines(ls => [...ls, { description: '', qty: 1, unitCost: 0, matched: false, markupPct: settings.defaultMarkup, suggestedPrice: 0 }])}><Plus size={14} /> Agregar renglón</button>
         </Card>
