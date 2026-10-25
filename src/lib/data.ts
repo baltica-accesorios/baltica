@@ -3,7 +3,7 @@ import { and, asc, desc, eq, gte, inArray, sql } from 'drizzle-orm'
 import { db, schema } from '@/db'
 import { DEFAULT_SETTINGS, DEFAULT_TEMPLATES } from './defaults'
 import { offerActive } from './pricing'
-import type { LabelTemplate, MovementReason, PaymentMethod, Product, PublicProduct, Purchase, Sale, SaleStatus, Settings, StockMovement } from './types'
+import type { Coupon, LabelTemplate, MovementReason, PaymentMethod, Product, PublicProduct, Purchase, Sale, SaleStatus, Settings, StockMovement } from './types'
 
 type ProductRow = typeof schema.products.$inferSelect
 type SaleRow = typeof schema.sales.$inferSelect
@@ -18,8 +18,11 @@ export function toProduct(r: ProductRow): Product {
   }
 }
 
-export function toPublic(p: Product): PublicProduct {
-  const { id, slug, name, category, subcategory, price, stock, image, images, description, variants, variantStock, createdAt } = p
+/** `wholesale`: cliente mayorista aprobado → ve el precio mayorista (si el producto lo tiene) */
+export function toPublic(p: Product, wholesale = false): PublicProduct {
+  const { id, slug, name, category, subcategory, stock, image, images, description, variants, variantStock, createdAt } = p
+  if (wholesale && p.wholesalePrice) return { id, slug, name, category, subcategory, price: p.wholesalePrice, offerPrice: null, offerEndsAt: null, stock, image, images, description, variants, variantStock, createdAt, wholesale: true }
+  const price = p.price
   // Las ofertas vencidas no llegan a la tienda
   const on = offerActive(p)
   return { id, slug, name, category, subcategory, price, offerPrice: on ? p.offerPrice : null, offerEndsAt: on ? p.offerEndsAt : null, stock, image, images, description, variants, variantStock, createdAt }
@@ -33,7 +36,7 @@ function toSale(r: SaleRow, items: (typeof schema.saleItems.$inferSelect)[]): Sa
     items: items.map(i => ({ productId: i.productId, name: i.name, qty: i.qty, unitPrice: i.unitPrice, unitCost: i.unitCost, variant: i.variant })),
     subtotal: r.subtotal, discount: r.discount, shipping: r.shipping, total: r.total, payment: r.payment as PaymentMethod,
     status: r.status as SaleStatus, customer: r.customer, shippingMethod: r.shippingMethod, note: r.note, seller: r.seller,
-    stockApplied: r.stockApplied, mpPaymentId: r.mpPaymentId,
+    stockApplied: r.stockApplied, mpPaymentId: r.mpPaymentId, couponCode: r.couponCode,
   }
 }
 
@@ -59,18 +62,18 @@ export async function getProduct(id: string): Promise<Product | null> {
 
 const visible = and(eq(schema.products.active, true), eq(schema.products.deleted, false))
 
-export async function publicProducts(filter: { category?: string; subcategory?: string; search?: string } = {}): Promise<PublicProduct[]> {
+export async function publicProducts(filter: { category?: string; subcategory?: string; search?: string } = {}, wholesale = false): Promise<PublicProduct[]> {
   const conds = [visible]
   if (filter.category) conds.push(eq(schema.products.category, filter.category))
   if (filter.subcategory) conds.push(eq(schema.products.subcategory, filter.subcategory))
   if (filter.search) conds.push(sql`unaccent_lower(${schema.products.name}) like '%' || unaccent_lower(${filter.search}) || '%'`)
   const rows = await db.select().from(schema.products).where(and(...conds)).orderBy(desc(schema.products.createdAt))
-  return rows.map(r => toPublic(toProduct(r)))
+  return rows.map(r => toPublic(toProduct(r), wholesale))
 }
 
-export async function publicProductBySlug(slug: string): Promise<PublicProduct | null> {
+export async function publicProductBySlug(slug: string, wholesale = false): Promise<PublicProduct | null> {
   const [r] = await db.select().from(schema.products).where(and(eq(schema.products.slug, slug), visible))
-  return r ? toPublic(toProduct(r)) : null
+  return r ? toPublic(toProduct(r), wholesale) : null
 }
 
 async function attachItems(rows: SaleRow[]): Promise<Sale[]> {
@@ -124,5 +127,29 @@ export async function adminBadges(threshold: number) {
   const [low] = await db.select({ n: sql<number>`count(*)::int` }).from(schema.products)
     .where(and(eq(schema.products.deleted, false), sql`${schema.products.stock} <= coalesce(${schema.products.minStock}, ${threshold})`))
   const [pending] = await db.select({ n: sql<number>`count(*)::int` }).from(schema.sales).where(inArray(schema.sales.status, ['pendiente', 'a_resolver']))
-  return { low: low.n, pending: pending.n }
+  const [wh] = await db.select({ n: sql<number>`count(*)::int` }).from(schema.customers).where(eq(schema.customers.wholesaleStatus, 'pendiente'))
+  const [msg] = await db.select({ n: sql<number>`count(*)::int` }).from(schema.messages).where(eq(schema.messages.handled, false))
+  return { low: low.n, pending: pending.n, customers: wh.n + msg.n }
+}
+
+export async function listCoupons(): Promise<Coupon[]> {
+  const rows = await db.select().from(schema.coupons).orderBy(desc(schema.coupons.createdAt))
+  return rows.map(c => ({ code: c.code, type: c.type, value: c.value, minAmount: c.minAmount, endsAt: c.endsAt?.toISOString() ?? null, maxUses: c.maxUses, uses: c.uses, active: c.active }))
+}
+
+export interface CustomerRow { id: number; name: string; email: string | null; phone: string | null; city: string | null; hasAccount: boolean; wholesaleStatus: string; wholesaleNote: string | null; source: string; createdAt: string; orders: number; spent: number; lastOrder: string | null }
+
+export async function listCustomers(): Promise<CustomerRow[]> {
+  const rows = await db.execute<{ id: number; name: string; email: string | null; phone: string | null; city: string | null; has_account: boolean; wholesale_status: string; wholesale_note: string | null; source: string; created_at: string; orders: number; spent: number; last_order: string | null }>(sql`
+    select c.id, c.name, c.email, c.phone, c.city, c.password_hash is not null as has_account, c.wholesale_status, c.wholesale_note, c.source, c.created_at,
+      count(s.number)::int as orders, coalesce(sum(s.total), 0)::int as spent, max(s.created_at) as last_order
+    from ${schema.customers} c
+    left join ${schema.sales} s on s.channel = 'online' and s.status <> 'cancelada' and lower(s.customer->>'email') = c.email
+    group by c.id order by (c.wholesale_status = 'pendiente') desc, max(s.created_at) desc nulls last, c.created_at desc`)
+  return [...rows].map(r => ({ id: r.id, name: r.name, email: r.email, phone: r.phone, city: r.city, hasAccount: r.has_account, wholesaleStatus: r.wholesale_status, wholesaleNote: r.wholesale_note, source: r.source, createdAt: new Date(r.created_at).toISOString(), orders: r.orders, spent: r.spent, lastOrder: r.last_order ? new Date(r.last_order).toISOString() : null }))
+}
+
+export async function listMessages() {
+  const rows = await db.select().from(schema.messages).orderBy(desc(schema.messages.createdAt)).limit(200)
+  return rows.map(m => ({ ...m, createdAt: m.createdAt.toISOString() }))
 }

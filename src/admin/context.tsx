@@ -4,7 +4,7 @@
 import { createContext, useContext } from 'react'
 import type { LabelTemplate, Product, Settings, User } from '@/lib/types'
 
-export interface AdminData { products: Product[]; settings: Settings; labelTemplates: LabelTemplate[]; user: User; badges: { low: number; pending: number }; hasAnthropicKey: boolean }
+export interface AdminData { products: Product[]; settings: Settings; labelTemplates: LabelTemplate[]; user: User; badges: { low: number; pending: number; customers: number }; hasAnthropicKey: boolean }
 
 const Ctx = createContext<AdminData | null>(null)
 

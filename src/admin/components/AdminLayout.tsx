@@ -2,7 +2,7 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Package, Boxes, ScanBarcode, ShoppingCart, Receipt, Camera, Tag, Database, BarChart3, Settings, Store, ExternalLink, AlertTriangle, LogOut } from 'lucide-react'
+import { LayoutDashboard, Ticket, Users, Package, Boxes, ScanBarcode, ShoppingCart, Receipt, Camera, Tag, Database, BarChart3, Settings, Store, ExternalLink, AlertTriangle, LogOut } from 'lucide-react'
 import { useAdmin } from '../context'
 import { logout } from '../actions'
 import { LOGO } from '@/data/categories'
@@ -17,13 +17,15 @@ const NAV = [
   { to: '/admin/escaner', label: 'Escáner', icon: ScanBarcode },
   { to: '/admin/compras', label: 'Compras y facturas', icon: Camera, owner: true },
   { to: '/admin/etiquetas', label: 'Etiquetas', icon: Tag },
+  { to: '/admin/cupones', label: 'Cupones', icon: Ticket, owner: true },
+  { to: '/admin/clientes', label: 'Clientes', icon: Users, owner: true },
   { to: '/admin/estadisticas', label: 'Estadísticas', icon: BarChart3, owner: true },
   { to: '/admin/migracion', label: 'Migrar Empretienda', icon: Database, owner: true },
   { to: '/admin/configuracion', label: 'Configuración', icon: Settings, owner: true },
 ]
 
 export function AdminLayout({ children }: { children: React.ReactNode }) {
-  const { badges: { low, pending }, user } = useAdmin()
+  const { badges: { low, pending, customers }, user } = useAdmin()
   const path = usePathname()
   // El panel se dibuja en el navegador: así fechas, horas y gráficos usan la zona horaria de quien lo mira
   const [mounted, setMounted] = useState(false)
@@ -43,6 +45,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
               <n.icon size={18} />{n.label}
               {n.to === '/admin/stock' && low > 0 && <span className="ml-auto text-[10px] bg-red-500 text-white rounded-full px-1.5 py-0.5">{low}</span>}
               {n.to === '/admin/ventas' && pending > 0 && <span className="ml-auto text-[10px] bg-amber-400 text-black rounded-full px-1.5 py-0.5">{pending}</span>}
+              {n.to === '/admin/clientes' && customers > 0 && <span className="ml-auto text-[10px] bg-amber-400 text-black rounded-full px-1.5 py-0.5">{customers}</span>}
             </Link>
           ))}
         </nav>

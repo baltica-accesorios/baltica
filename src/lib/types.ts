@@ -29,7 +29,7 @@ export interface Product {
 }
 
 // Lo que ve la tienda pública: sin costo ni datos internos
-export type PublicProduct = Pick<Product, 'id' | 'slug' | 'name' | 'category' | 'subcategory' | 'price' | 'offerPrice' | 'offerEndsAt' | 'stock' | 'image' | 'images' | 'description' | 'variants' | 'variantStock' | 'createdAt'>
+export type PublicProduct = Pick<Product, 'id' | 'slug' | 'name' | 'category' | 'subcategory' | 'price' | 'offerPrice' | 'offerEndsAt' | 'stock' | 'image' | 'images' | 'description' | 'variants' | 'variantStock' | 'createdAt'> & { wholesale?: boolean }
 
 export interface SaleItem {
   productId: string
@@ -64,7 +64,10 @@ export interface Sale {
   seller?: string | null
   stockApplied?: boolean
   mpPaymentId?: string | null
+  couponCode?: string | null
 }
+
+export interface Coupon { code: string; type: 'pct' | 'fixed' | 'envio'; value: number; minAmount: number; endsAt: string | null; maxUses: number | null; uses: number; active: boolean }
 
 export type MovementReason = 'venta_online' | 'venta_local' | 'compra' | 'ajuste' | 'devolucion' | 'migracion' | 'rotura'
 
@@ -104,7 +107,7 @@ export interface LabelTemplate {
   layout?: LabelLayout | null
 }
 
-export type LabelField = 'store' | 'name' | 'barcode' | 'price' | 'sku' | 'text'
+export type LabelField = 'logo' | 'store' | 'name' | 'barcode' | 'price' | 'sku' | 'text'
 export interface LabelLayout {
   order: LabelField[]          // de arriba hacia abajo; lo que no está, no se imprime
   align: 'center' | 'left'
@@ -122,9 +125,20 @@ export interface LabelLayout {
   border: boolean
   gapMm: number                // separación entre etiquetas
   paddingMm: number
+  logoUrl?: string             // vacío = logo de Báltica
+  logoHeight?: number          // en mm
+  logoBW?: boolean             // blanco y negro (para impresoras térmicas)
 }
 
-export interface ShippingOption { id: string; name: string; price: number; description: string }
+export interface ShippingOption {
+  id: string
+  name: string
+  price: number              // fijo; en las de Correo es el precio de respaldo si la cotización en vivo no está disponible
+  description: string
+  kind?: 'fijo' | 'correo_domicilio' | 'correo_sucursal'
+  zips?: string              // códigos postales donde se ofrece: "2900, 2901-2905, 29*". Vacío = todo el país
+}
+export interface Parcel { originZip: string; baseWeightG: number; itemWeightG: number; lengthCm: number; widthCm: number; heightCm: number }
 
 export interface Settings {
   storeName: string
@@ -137,6 +151,7 @@ export interface Settings {
   transferInfo: string      // alias / CBU que ve el cliente al elegir transferencia
   cashOnPickup: boolean     // permitir "efectivo al retirar"
   shippingOptions: ShippingOption[]
+  parcel: Parcel            // datos del paquete para cotizar con Correo Argentino
   whatsapp: string
   email: string
   instagram: string

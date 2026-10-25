@@ -6,6 +6,8 @@ import { eq } from 'drizzle-orm'
 import { db, schema } from '@/db'
 import { moveItems, StockError } from './stock'
 import { saleId } from './data'
+import { orderEmails } from './order-emails'
+import { notifyStore } from './email'
 
 export const mpEnabled = () => !!process.env.MP_ACCESS_TOKEN
 const client = () => new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN!, options: { timeout: 10000 } })
@@ -14,6 +16,7 @@ const siteUrl = () => (process.env.SITE_URL ?? 'http://localhost:3000').replace(
 interface PrefInput {
   saleNumber: number
   items: { productId: string; name: string; qty: number; unitPrice: number; image?: string }[]
+  discount: number
   shipping: number
   shippingName?: string
   payer: { name: string; email?: string; phone?: string }
@@ -23,11 +26,14 @@ export async function createPreference(p: PrefInput) {
   const base = siteUrl()
   // Mercado Pago rechaza back_urls/notification_url que no sean públicas (localhost); en desarrollo se omiten.
   const isPublic = base.startsWith('https://')
-  const items = p.items.map(i => ({
-    id: i.productId, title: i.name, quantity: i.qty, unit_price: i.unitPrice, currency_id: 'ARS',
-    picture_url: i.image?.startsWith('/') ? base + i.image : i.image,
-  }))
-  if (p.shipping > 0) items.push({ id: 'envio', title: `Envío: ${p.shippingName ?? ''}`.trim(), quantity: 1, unit_price: p.shipping, currency_id: 'ARS', picture_url: undefined })
+  // Un solo renglón con el total exacto del pedido: así cupones, descuentos y envío nunca dejan un centavo de diferencia
+  const total = p.items.reduce((a, i) => a + i.qty * i.unitPrice, 0) - p.discount + p.shipping
+  const first = p.items[0]?.image
+  const detail = p.items.map(i => `${i.qty}× ${i.name}`).join(', ') + (p.shipping ? ` + envío (${p.shippingName ?? ''})` : '')
+  const items = [{
+    id: String(p.saleNumber), title: `Pedido #${p.saleNumber} · Báltica Accesorios`, description: detail.slice(0, 250), quantity: 1, unit_price: total, currency_id: 'ARS',
+    picture_url: first?.startsWith('/') ? base + first : first,
+  }]
   const res = await new Preference(client()).create({
     body: {
       items,
@@ -60,6 +66,7 @@ export function validateWebhook(headers: Headers, dataId: string | null) {
  * Devuelve el número de venta afectado.
  */
 export async function processPayment(paymentId: string): Promise<number | null> {
+  let justPaid = false, toResolve = ''
   const pay = await new Payment(client()).get({ id: paymentId })
   const number = Number(pay.external_reference)
   if (!number) return null
@@ -81,9 +88,11 @@ export async function processPayment(paymentId: string): Promise<number | null> 
         // Savepoint: si falta stock se deshace sólo el descuento, y la venta queda marcada para resolver
         await tx.transaction(inner => moveItems(inner, items, -1, 'venta_online', 'tienda online', ref))
         await tx.update(schema.sales).set({ ...base, status: 'pagada', stockApplied: true }).where(eq(schema.sales.number, number))
+        justPaid = true
       } catch (e) {
         if (!(e instanceof StockError)) throw e
         await tx.update(schema.sales).set({ ...base, status: 'a_resolver', note: `Pago aprobado pero ${e.message}. Reponer, ofrecer alternativa o devolver el dinero desde Mercado Pago.` }).where(eq(schema.sales.number, number))
+        toResolve = e.message
       }
       return
     }
@@ -100,5 +109,8 @@ export async function processPayment(paymentId: string): Promise<number | null> 
     // pending / in_process / rejected / cancelled: la venta sigue pendiente, sólo registramos el estado
     await tx.update(schema.sales).set(base).where(eq(schema.sales.number, number))
   })
+  // Email una sola vez: cuando esta llamada fue la que confirmó el pago
+  if (justPaid) await orderEmails(number, 'pagado').catch(e => console.error('orderEmails', e))
+  if (toResolve) await notifyStore(`Venta #${number} cobrada sin stock: hay que resolverla`, [`Mercado Pago aprobó el pago pero ${toResolve} (se vendió en el local mientras el cliente pagaba).`, 'Entrá a Ventas para reponer, ofrecer otra cosa o devolver el dinero.']).catch(() => {})
   return number
 }

@@ -99,7 +99,32 @@ Hacerlo recién cuando la tienda nueva esté revisada y la migración hecha (ver
 Desde ese momento en *Compras y facturas* aparece "Cargar factura por foto", y la migración reconoce
 sola las columnas de los archivos de Empretienda. Cada factura cuesta centavos de dólar.
 
-## 7. Migrar desde Empretienda
+## 7. Emails automáticos (opcional, recomendado)
+
+Sirven para: confirmación de pedido al cliente, aviso de cada venta a Báltica, recuperar contraseña,
+aviso de cuenta mayorista aprobada y los formularios de contacto y arrepentimiento. Sin esto todo
+funciona igual y los mensajes quedan en el panel (Clientes → Mensajes).
+
+1. Crear cuenta gratis en **resend.com** con el mail de Báltica (3.000 emails por mes gratis).
+2. *Domains* → *Add domain* → `balticaaccesorios.com.ar` y cargar en el DNS los registros que muestra
+   (así los mails salen de `tienda@balticaaccesorios.com.ar` y no caen en spam).
+3. *API Keys* → crear una y copiarla.
+4. En Netlify, agregar `RESEND_API_KEY` (la clave) y `EMAIL_FROM` = `Báltica Accesorios <tienda@balticaaccesorios.com.ar>`, y volver a publicar.
+5. Los avisos de la tienda llegan al email cargado en **Configuración → Datos de contacto**.
+
+## 8. Correo Argentino: cotización en vivo (opcional)
+
+Sin esto, los envíos por Correo usan los precios fijos cargados en Configuración → Envíos (se pueden
+limitar por código postal). Para que el precio salga calculado por código postal:
+
+1. Tener cuenta en **MiCorreo** (correoargentino.com.ar) como empresa y pedir acceso a la **API MiCorreo**
+   (Correo entrega usuario y contraseña de API, distintos para prueba y producción).
+2. En Netlify cargar `CORREO_API_USER`, `CORREO_API_PASSWORD` (los de la API), `CORREO_EMAIL`, `CORREO_PASSWORD`
+   (los de la cuenta MiCorreo) y `CORREO_ENV` = `test` para probar o `prod` para producción.
+3. En Configuración → Envíos completar el **CP de origen** y el tamaño/peso del paquete.
+   Si el Correo no responde, se usa el precio fijo: el checkout nunca se traba.
+
+## 9. Migrar desde Empretienda
 
 En el panel → **Migrar Empretienda**. Son 4 pasos con botón, y cada uno explica qué archivo exportar
 desde Empretienda. Se puede repetir cuantas veces haga falta (el día del cambio de dominio se vuelve a

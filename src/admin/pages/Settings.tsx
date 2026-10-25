@@ -9,7 +9,7 @@ import type { Settings, ShippingOption } from '@/lib/types'
 
 interface UserRow { id: number; name: string; email: string; role: 'duena' | 'vendedora'; active: boolean }
 
-export function SettingsPage({ users, mp }: { users: UserRow[]; mp: { enabled: boolean; test: boolean; webhook: boolean } }) {
+export function SettingsPage({ users, mp, correo }: { users: UserRow[]; mp: { enabled: boolean; test: boolean; webhook: boolean }; correo: boolean }) {
   const { settings: saved, hasAnthropicKey, user } = useAdmin()
   const [settings, setLocal] = useState<Settings>(saved)
   const [msg, setMsg] = useState('')
@@ -54,10 +54,24 @@ export function SettingsPage({ users, mp }: { users: UserRow[]; mp: { enabled: b
               <div key={o.id} className="border rounded-lg p-3 space-y-2">
                 <div className="flex gap-2"><input className={input} value={o.name} onChange={e => setShip(i, { name: e.target.value })} aria-label="Nombre" /><input className={input + ' w-28'} type="number" value={o.price} onChange={e => setShip(i, { price: Number(e.target.value) })} aria-label="Precio" />{o.id !== 'retiro' && <button className="text-stone-400 hover:text-red-600" aria-label="Quitar" onClick={() => set({ shippingOptions: settings.shippingOptions.filter((_, k) => k !== i) })}><Trash2 size={16} /></button>}</div>
                 <input className={input + ' text-xs'} value={o.description} onChange={e => setShip(i, { description: e.target.value })} aria-label="Descripción" placeholder="Descripción que ve el cliente" />
+                <div className="grid grid-cols-2 gap-2">
+                  <select className={input + ' text-xs'} value={o.kind ?? 'fijo'} onChange={e => setShip(i, { kind: e.target.value as ShippingOption['kind'] })} aria-label="Tipo de precio"><option value="fijo">Precio fijo</option><option value="correo_domicilio">Correo Argentino a domicilio</option><option value="correo_sucursal">Correo Argentino a sucursal</option></select>
+                  <input className={input + ' text-xs'} value={o.zips ?? ''} onChange={e => setShip(i, { zips: e.target.value })} placeholder="CP donde se ofrece (vacío = todos)" aria-label="Códigos postales" />
+                </div>
               </div>
             ))}
           </div>
-          <button className={btnGhost + ' mt-3 text-xs'} onClick={() => set({ shippingOptions: [...settings.shippingOptions, { id: 'e' + Date.now().toString(36), name: 'Nuevo envío', price: 0, description: '' }] })}><Plus size={14} /> Agregar opción</button>
+          <button className={btnGhost + ' mt-3 text-xs'} onClick={() => set({ shippingOptions: [...settings.shippingOptions, { id: 'e' + Date.now().toString(36), name: 'Nuevo envío', price: 0, description: '', kind: 'fijo', zips: '' }] })}><Plus size={14} /> Agregar opción</button>
+          <div className="text-xs text-stone-500 mt-2">Códigos postales: separados por coma, rangos con guion o prefijos con asterisco. Ej: <code>2900</code>, <code>2900-2905</code>, <code>29*</code>.</div>
+          <div className="text-xs text-stone-500 mt-2">{correo ? <b className="text-emerald-700">Correo Argentino conectado: las opciones de Correo se cotizan en vivo por código postal; el precio cargado se usa sólo si el Correo no responde.</b> : 'Las opciones de Correo Argentino usan el precio cargado. Para cotizar en vivo por código postal hay que cargar las credenciales de MiCorreo (ver guía).'}</div>
+          <div className="grid grid-cols-3 gap-2 mt-3">
+            <label className="text-xs text-stone-600">CP de origen<input className={input + ' mt-0.5 text-xs'} value={settings.parcel.originZip} onChange={e => set({ parcel: { ...settings.parcel, originZip: e.target.value } })} /></label>
+            <label className="text-xs text-stone-600">Peso base (g)<input className={input + ' mt-0.5 text-xs'} type="number" value={settings.parcel.baseWeightG} onChange={e => set({ parcel: { ...settings.parcel, baseWeightG: Number(e.target.value) } })} /></label>
+            <label className="text-xs text-stone-600">Peso por producto (g)<input className={input + ' mt-0.5 text-xs'} type="number" value={settings.parcel.itemWeightG} onChange={e => set({ parcel: { ...settings.parcel, itemWeightG: Number(e.target.value) } })} /></label>
+            <label className="text-xs text-stone-600">Largo (cm)<input className={input + ' mt-0.5 text-xs'} type="number" value={settings.parcel.lengthCm} onChange={e => set({ parcel: { ...settings.parcel, lengthCm: Number(e.target.value) } })} /></label>
+            <label className="text-xs text-stone-600">Ancho (cm)<input className={input + ' mt-0.5 text-xs'} type="number" value={settings.parcel.widthCm} onChange={e => set({ parcel: { ...settings.parcel, widthCm: Number(e.target.value) } })} /></label>
+            <label className="text-xs text-stone-600">Alto (cm)<input className={input + ' mt-0.5 text-xs'} type="number" value={settings.parcel.heightCm} onChange={e => set({ parcel: { ...settings.parcel, heightCm: Number(e.target.value) } })} /></label>
+          </div>
           <div className="text-xs text-stone-500 mt-2">Precio 0 = gratis. &quot;Retiro en showroom&quot; no se puede borrar (es el que habilita el pago en efectivo).</div>
         </Card>
 

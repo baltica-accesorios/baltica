@@ -14,7 +14,9 @@ diseñables y migración asistida desde Empretienda.
 - Franja de aviso arriba de todo ("¡Sólo por hoy domingo! -20%…"), editable desde el panel.
 - Botón **Comprar** en cada producto, carrito lateral, checkout con envíos configurables.
 - Pagos: **transferencia** (con los datos e instrucciones de siempre), **Mercado Pago** y efectivo al retirar (los dos últimos se activan cuando quieran).
-- Botón de WhatsApp, botón de arrepentimiento, Google Analytics con el mismo ID que Empretienda.
+- Talles con stock propio (los agotados aparecen tachados), cupones de descuento, envío calculado por código postal.
+- Cuentas de clientes con historial de pedidos y cuentas mayoristas con precios mayoristas.
+- Formulario de contacto, botón de arrepentimiento, WhatsApp, Google Analytics con el mismo ID que Empretienda.
 
 **Panel (`/admin`)**
 - **Vender en mostrador** con lector de códigos, cámara del celular o búsqueda. Mismo stock que la tienda.
@@ -22,7 +24,9 @@ diseñables y migración asistida desde Empretienda.
 - **Productos** con costo, margen y código de barras; aumento masivo de precios y **ofertas masivas con fecha de fin**.
 - **Stock** con alertas, cobertura en días, movimientos trazables y conteo físico.
 - **Compras y facturas**: carga manual, repetir una compra, o lectura por foto con Claude (opcional).
-- **Etiquetas**: editor visual para diseñar cada plantilla a gusto (tamaño, qué lleva, orden, tamaños de letra, alto de barras), con vista previa en tamaño real y aviso si algo no entra.
+- **Etiquetas**: editor visual para diseñar cada plantilla a gusto (tamaño, logo, qué lleva, orden, tamaños de letra, alto de barras), con vista previa en tamaño real y aviso si algo no entra.
+- **Cupones**: crear, pausar y ver cuántas veces se usó cada uno.
+- **Clientes**: compras de cada cliente, aprobación de cuentas mayoristas, mensajes de contacto y pedidos de arrepentimiento.
 - **Estadísticas**, **migración desde Empretienda**, **configuración** (pagos, envíos, aviso, usuarios, copia de seguridad).
 
 ## Documentación
@@ -99,13 +103,15 @@ Comparado contra balticaaccesorios.com.ar el 25/10/2026.
 | Botón "Comprar" en el listado | ✅ |
 | Transferencia con datos e instrucciones (sin descuento, como hoy) | ✅ |
 | Filtro por atributo y orden por precio/fecha | ✅ |
-| WhatsApp, redes, botón de arrepentimiento, páginas de información | ✅ (arrepentimiento por WhatsApp/email, sin formulario) |
+| **Stock por variante** (cada talle con su propio stock) | ✅ |
+| **Cupones de descuento** (%, monto fijo o envío gratis; mínimo, vencimiento y usos máximos) | ✅ |
+| **Cuentas de clientes** (registro, ingreso, recuperar contraseña, historial de pedidos) | ✅ |
+| **Cuentas mayoristas** (solicitud, aprobación en el panel, precio mayorista por producto) | ✅ |
+| **Envío por código postal** (zonas por CP + cotización en vivo de Correo Argentino si se cargan credenciales MiCorreo) | ✅ |
+| **Formulario de contacto y botón de arrepentimiento** (con código de solicitud, Res. 424/2020) | ✅ |
+| Emails de confirmación de pedido y avisos a la tienda | ✅ (con Resend, opcional) |
+| WhatsApp, redes, páginas de información | ✅ |
 | Google Analytics | ✅ mismo ID |
-| **Stock por variante** (cada talle con su propio stock) | ⏳ hoy el stock es por producto |
-| **Cupones de descuento** | ⏳ pendiente |
-| **Cuentas de clientes y mayoristas** (registro, precios mayoristas) | ⏳ pendiente |
-| **Cálculo de envío por código postal** (cotización de Correo Argentino) | ⏳ hoy son tarifas fijas configurables |
-| Formularios de contacto y arrepentimiento con envío de email | ⏳ pendiente (necesita un servicio de email) |
 
 ## Reglas de stock (resumen)
 

@@ -3,7 +3,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Printer, Search, Plus, Trash2, ChevronUp, ChevronDown, Pencil, Copy, X, AlignCenter, AlignLeft } from 'lucide-react'
 import { useAdmin } from '../context'
-import { deleteTemplate, upsertTemplate } from '../actions'
+import { deleteTemplate, uploadImage, upsertTemplate } from '../actions'
+import { shrink } from '../components/ImageUpload'
 import { PageHeader, Card, Hint, btnGhost, btnPrimary, input } from '../components/AdminLayout'
 import { LabelView, layoutOf, FIELD_LABEL, ALL_FIELDS } from '../components/LabelView'
 import { uid } from '@/lib/format'
@@ -80,7 +81,7 @@ function Num({ label, value, onChange, min = 0, max = 100, step = 1, suffix }: {
   )
 }
 
-const SIZE_KEY: Partial<Record<LabelField, keyof LabelLayout>> = { store: 'storeSize', name: 'nameSize', price: 'priceSize', sku: 'skuSize', text: 'textSize' }
+const SIZE_KEY: Partial<Record<LabelField, keyof LabelLayout>> = { logo: 'logoHeight', store: 'storeSize', name: 'nameSize', price: 'priceSize', sku: 'skuSize', text: 'textSize' }
 
 function LabelEditor({ initial, sample: firstSample, products, onClose, onSaved, canDelete }: { initial: LabelTemplate; sample: Product; products: Product[]; onClose: () => void; onSaved: (id: string) => void; canDelete: boolean }) {
   const [t, setT] = useState<LabelTemplate>(initial)
@@ -168,9 +169,14 @@ function LabelEditor({ initial, sample: firstSample, products, onClose, onSaved,
                         </>}
                       </div>
                       {on && <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-2 pl-6">
-                        {sk && <Num label="Letra" suffix="pt" value={l[sk] as number} min={3} max={40} step={0.5} onChange={n => setL({ [sk]: n } as Partial<LabelLayout>)} />}
+                        {sk && <Num label={f === 'logo' ? 'Alto' : 'Letra'} suffix={f === 'logo' ? 'mm' : 'pt'} value={(l[sk] as number | undefined) ?? Math.max(3, Math.round(t.heightMm * 0.25))} min={f === 'logo' ? 2 : 3} max={f === 'logo' ? 100 : 40} step={0.5} onChange={n => setL({ [sk]: n } as Partial<LabelLayout>)} />}
                         {f === 'barcode' && <><Num label="Alto de las barras" suffix="mm" value={l.barcodeHeight} min={2} max={60} step={0.5} onChange={n => setL({ barcodeHeight: n })} /><label className="text-sm flex items-center gap-2 self-end h-7"><input type="checkbox" checked={l.barcodeNumber} onChange={e => setL({ barcodeNumber: e.target.checked })} /> Números abajo</label></>}
                         {f === 'price' && <><label className="text-sm flex items-center gap-2 self-end h-7"><input type="checkbox" checked={l.priceBold} onChange={e => setL({ priceBold: e.target.checked })} /> Negrita</label><label className="text-sm flex items-center gap-2 self-end h-7"><input type="checkbox" checked={l.showCents} onChange={e => setL({ showCents: e.target.checked })} /> Con centavos</label></>}
+                        {f === 'logo' && <div className="col-span-2 sm:col-span-2 flex flex-wrap items-end gap-2">
+                          <label className={btnGhost + ' text-xs py-1.5 cursor-pointer'}><input type="file" accept="image/*" className="hidden" onChange={async e => { const file = e.target.files?.[0]; e.target.value = ''; if (!file) return; const fd = new FormData(); fd.set('file', new File([await shrink(file, 600, 'image/png')], 'logo.png', { type: 'image/png' })); const r = await uploadImage(fd); if (r.ok) setL({ logoUrl: r.url }); else setErr(r.error) }} />Subir otra imagen</label>
+                          {l.logoUrl && <button type="button" className="text-xs underline text-stone-500" onClick={() => setL({ logoUrl: '' })}>Usar el logo de Báltica</button>}
+                          <label className="text-sm flex items-center gap-2 h-7"><input type="checkbox" checked={!!l.logoBW} onChange={e => setL({ logoBW: e.target.checked })} /> Blanco y negro</label>
+                        </div>}
                         {f === 'store' && <label className="text-xs text-stone-600 col-span-2">Texto<input className={input + ' mt-0.5 py-1'} value={l.storeText} onChange={e => setL({ storeText: e.target.value })} /></label>}
                         {f === 'text' && <label className="text-xs text-stone-600 col-span-2">Texto<input className={input + ' mt-0.5 py-1'} value={l.customText} onChange={e => setL({ customText: e.target.value })} placeholder="Ej: Acero quirúrgico · Cambios 30 días" /></label>}
                       </div>}

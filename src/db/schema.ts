@@ -58,6 +58,7 @@ export const sales = pgTable('sales', {
   seller: text('seller'),
   // true cuando la venta ya descontó stock (mostrador: al cobrar; online: al confirmarse el pago)
   stockApplied: boolean('stock_applied').notNull().default(false),
+  couponCode: text('coupon_code'),
   mpPreferenceId: text('mp_preference_id'),
   mpPaymentId: text('mp_payment_id'),
   mpStatus: text('mp_status'),
@@ -125,8 +126,33 @@ export const customers = pgTable('customers', {
   email: text('email').unique(),
   phone: text('phone'),
   city: text('city'),
-  wholesale: boolean('wholesale').notNull().default(false),
+  // Cuenta en la tienda (opcional: también se guardan clientes que compraron sin registrarse)
+  passwordHash: text('password_hash'),
+  // Cuenta mayorista: el cliente la pide y la dueña la aprueba en el panel
+  wholesaleStatus: text('wholesale_status').$type<'none' | 'pendiente' | 'aprobado' | 'rechazado'>().notNull().default('none'),
+  wholesaleNote: text('wholesale_note'),
+  resetToken: text('reset_token'),      // sha256 del link de "olvidé mi contraseña"
+  resetExpires: timestamp('reset_expires', { withTimezone: true }),
   source: text('source').notNull().default('tienda'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+export const customerSessions = pgTable('customer_sessions', {
+  id: text('id').primaryKey(),
+  customerId: integer('customer_id').notNull().references(() => customers.id, { onDelete: 'cascade' }),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+})
+
+// Mensajes del formulario de contacto y pedidos de arrepentimiento: quedan en el panel aunque falle el email
+export const messages = pgTable('messages', {
+  id: serial('id').primaryKey(),
+  kind: text('kind').$type<'contacto' | 'arrepentimiento'>().notNull(),
+  name: text('name').notNull(),
+  email: text('email').notNull(),
+  phone: text('phone'),
+  orderNumber: text('order_number'),
+  body: text('body').notNull(),
+  handled: boolean('handled').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
@@ -153,4 +179,17 @@ export const sessions = pgTable('sessions', {
   id: text('id').primaryKey(),
   userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+})
+
+// Cupones de descuento para la tienda online (como en Empretienda)
+export const coupons = pgTable('coupons', {
+  code: text('code').primaryKey(),                 // siempre en mayúsculas
+  type: text('type').$type<'pct' | 'fixed' | 'envio'>().notNull(),
+  value: integer('value').notNull().default(0),    // % o pesos según el tipo; 0 para envío gratis
+  minAmount: integer('min_amount').notNull().default(0),
+  endsAt: timestamp('ends_at', { withTimezone: true }),
+  maxUses: integer('max_uses'),
+  uses: integer('uses').notNull().default(0),
+  active: boolean('active').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })

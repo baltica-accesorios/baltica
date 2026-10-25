@@ -198,8 +198,8 @@ async function importCustomers(rows: Record<string, string>[], get: Getter) {
   for (const r of rows) {
     const name = get(r, 'name'); if (!name) continue
     const email = get(r, 'email').toLowerCase() || null
-    const values = { name, email, phone: get(r, 'phone') || null, city: get(r, 'city') || null, wholesale: mapYes(get(r, 'wholesale')), source: 'empretienda' }
-    if (email) await db.insert(schema.customers).values(values).onConflictDoUpdate({ target: schema.customers.email, set: { name, phone: values.phone, city: values.city, wholesale: values.wholesale } })
+    const values = { name, email, phone: get(r, 'phone') || null, city: get(r, 'city') || null, wholesaleStatus: mapYes(get(r, 'wholesale')) ? 'aprobado' as const : 'none' as const, source: 'empretienda' }
+    if (email) await db.insert(schema.customers).values(values).onConflictDoUpdate({ target: schema.customers.email, set: { name, phone: values.phone, city: values.city, ...(values.wholesaleStatus === 'aprobado' ? { wholesaleStatus: 'aprobado' as const } : {}) } })
     else await db.insert(schema.customers).values(values)
     n++
   }

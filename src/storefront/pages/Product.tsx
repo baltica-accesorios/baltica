@@ -4,12 +4,18 @@ import Link from 'next/link'
 import { Info, Truck } from 'lucide-react'
 import { categoryName, subcategoryName } from '@/data/categories'
 import { money } from '@/lib/format'
-import type { PublicProduct, ShippingOption } from '@/lib/types'
+import type { PublicProduct } from '@/lib/types'
+import type { Quote } from '@/lib/shipping'
+import { getShippingQuotes } from '../checkout-action'
 import { useCart, variantStockOf } from '../cart'
 import { Price } from '../components/ProductCard'
 import { offerEndLabel, offerPct } from '@/lib/pricing'
 
-export function ProductPage({ p, shipping }: { p: PublicProduct; shipping: ShippingOption[] }) {
+export function ProductPage({ p, shipping }: { p: PublicProduct; shipping: Quote[] }) {
+  const [zip, setZip] = useState('')
+  const [quotes, setQuotes] = useState<Quote[] | null>(null)
+  const [quoting, setQuoting] = useState(false)
+  const calc = async () => { if (!/\d{4}/.test(zip)) return; setQuoting(true); setQuotes(await getShippingQuotes(zip, qty)); setQuoting(false) }
   const add = useCart(s => s.add)
   // Arranca en el primer talle con stock
   const [variant, setVariant] = useState<string | undefined>(p.variants?.options.find(o => variantStockOf(p, o) > 0) ?? p.variants?.options[0])
@@ -33,7 +39,7 @@ export function ProductPage({ p, shipping }: { p: PublicProduct; shipping: Shipp
         </div>
         <div>
           <h1>{p.name}</h1>
-          <p className="price"><Price p={p} /></p>
+          <p className="price"><Price p={p} />{p.wholesale && <span className="sf-wholesale-tag">PRECIO MAYORISTA</span>}</p>
           {offerPct(p) > 0 && <span className="sf-off">{offerPct(p)}% OFF{p.offerEndsAt ? ` hasta el ${offerEndLabel(p.offerEndsAt)} hs` : ''}</span>}
           {p.variants && p.variants.options.length > 0 && <>
             <p className="lbl">{p.variants.attr}</p>
@@ -49,10 +55,11 @@ export function ProductPage({ p, shipping }: { p: PublicProduct; shipping: Shipp
             <button className="sf-btn lg" disabled={out} onClick={() => add(p, qty, variant)}>{p.stock <= 0 ? 'Sin stock' : out ? `Sin stock en ${variant}` : 'Agregar al carrito'}</button>
           </div>
           {!out && avail <= 3 && <p style={{ color: '#b45309', fontSize: 14, marginTop: 10 }}>{avail === 1 ? '¡Última unidad!' : `¡Últimas ${avail} unidades!`}</p>}
-          <div className="sf-note"><Info size={18} style={{ flexShrink: 0, marginTop: 2 }} /><span>Podés retirar gratis en nuestro showroom de San Nicolás o recibirlo en tu casa.</span></div>
-          <div style={{ fontWeight: 700, fontSize: '.95rem', display: 'flex', gap: 6, alignItems: 'center', marginBottom: 8 }}><Truck size={16} /> Opciones de envío</div>
+          <div className="sf-note"><Info size={18} style={{ flexShrink: 0, marginTop: 2 }} /><span>Colocar código postal 2900 (si sos de San Nicolás) o el que corresponda según tu ciudad para ver las opciones de retiros y envíos</span></div>
+          <div style={{ fontWeight: 700, fontSize: '.95rem', display: 'flex', gap: 6, alignItems: 'center' }}><Truck size={16} /> Calculá el costo de envío</div>
+          <form className="sf-ship" onSubmit={e => { e.preventDefault(); calc() }}><input placeholder="Código postal" inputMode="numeric" maxLength={8} value={zip} onChange={e => setZip(e.target.value)} aria-label="Código postal" /><button disabled={quoting}>{quoting ? '…' : 'Calcular'}</button></form>
           <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: 14 }}>
-            {shipping.map(s => <li key={s.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '6px 0', borderBottom: '1px solid #eee' }}><span>{s.name}</span><b>{s.price ? money(s.price) : 'Gratis'}</b></li>)}
+            {(quotes ?? shipping).map(s => <li key={s.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '6px 0', borderBottom: '1px solid #eee' }}><span>{s.name}{s.days && <span style={{ color: '#777' }}> · {s.days}</span>}</span><b>{s.price ? money(s.price) : 'Gratis'}</b></li>)}
           </ul>
           {p.description && <p style={{ marginTop: 30, lineHeight: 1.6, whiteSpace: 'pre-line' }}>{p.description}</p>}
         </div>

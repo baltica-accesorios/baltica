@@ -130,6 +130,7 @@ export function ProductForm({ existing, initialBarcode }: { existing?: Product |
               <label className="text-sm">% ganancia de este producto<input className={input + ' mt-1'} type="number" value={p.markupPct ?? settings.defaultMarkup} onChange={e => set({ markupPct: Number(e.target.value), price: roundTo(p.cost * (1 + Number(e.target.value) / 100), settings.roundTo) })} /></label>
               <label className="text-sm">Precio de venta<input className={input + ' mt-1'} type="number" value={p.price} onChange={e => set({ price: Number(e.target.value) })} /></label>
               <label className="text-sm">Precio oferta (opcional)<input className={input + ' mt-1'} type="number" value={p.offerPrice ?? ''} onChange={e => set({ offerPrice: e.target.value ? Number(e.target.value) : null })} /></label>
+              <label className="text-sm">Precio mayorista (opcional)<input className={input + ' mt-1'} type="number" value={p.wholesalePrice ?? ''} onChange={e => set({ wholesalePrice: e.target.value ? Number(e.target.value) : null })} placeholder="lo ven sólo los mayoristas" /></label>
               {!!p.offerPrice && <label className="text-sm md:col-span-2">La oferta termina (vacío = sin fecha)<input className={input + ' mt-1'} type="datetime-local" value={p.offerEndsAt ? toLocalInput(new Date(p.offerEndsAt)) : ''} onChange={e => set({ offerEndsAt: e.target.value ? new Date(e.target.value).toISOString() : null })} /></label>}
             </div>
             <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">

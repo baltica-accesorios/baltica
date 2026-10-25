@@ -1,31 +1,53 @@
 'use client'
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { money } from '@/lib/format'
-import type { ShippingOption } from '@/lib/types'
+import type { Quote } from '@/lib/shipping'
 import { useCart } from '../cart'
 import { useMounted } from '../components/Layout'
-import { checkout } from '../checkout-action'
+import { checkout, getShippingQuotes, previewCoupon } from '../checkout-action'
 
 type Pay = 'mercadopago' | 'transferencia' | 'efectivo'
 
-export function Checkout({ shipping, transferPct, mpEnabled, cashOnPickup }: { shipping: ShippingOption[]; transferPct: number; mpEnabled: boolean; cashOnPickup: boolean }) {
+export function Checkout({ shipping, transferPct, mpEnabled, cashOnPickup, me }: { shipping: Quote[]; transferPct: number; mpEnabled: boolean; cashOnPickup: boolean; me: { name: string; email: string; phone: string; city: string } | null }) {
   const { lines, clear } = useCart()
   const mounted = useMounted()
   const router = useRouter()
-  const [form, setForm] = useState({ name: '', email: '', phone: '', city: 'San Nicolás', address: '', zip: '' })
+  const [form, setForm] = useState({ name: me?.name ?? '', email: me?.email ?? '', phone: me?.phone ?? '', city: me?.city || 'San Nicolás', address: '', zip: '' })
+  const [quotes, setQuotes] = useState<Quote[]>(shipping)
   const [shipId, setShipId] = useState(shipping[0]?.id ?? '')
+  const [quoting, setQuoting] = useState(false)
   const [chosen, setPayment] = useState<Pay>(mpEnabled ? 'mercadopago' : 'transferencia')
   const [err, setErr] = useState('')
   const [pending, start] = useTransition()
+  const [couponInput, setCouponInput] = useState('')
+  const [coupon, setCoupon] = useState<{ code: string; discount: number; freeShipping: boolean; label: string } | null>(null)
+  const [couponMsg, setCouponMsg] = useState('')
 
-  const ship = shipping.find(s => s.id === shipId)
+  const ship = quotes.find(s => s.id === shipId)
+  const units = lines.reduce((a, l) => a + l.qty, 0)
+  const zip4 = form.zip.match(/\d{4}/)?.[0] ?? ''
+  // Cotiza solo cuando hay un código postal de 4 dígitos
+  useEffect(() => {
+    let cancel = false
+    setQuoting(!!zip4)
+    const t = setTimeout(async () => {
+      const q = await getShippingQuotes(zip4, units)
+      if (cancel) return
+      setQuotes(q); setQuoting(false)
+      setShipId(id => q.some(x => x.id === id) ? id : q[0]?.id ?? '')
+    }, zip4 ? 300 : 0)
+    return () => { cancel = true; clearTimeout(t) }
+  }, [zip4, units])
   // Si cambia el envío y el medio elegido deja de valer (efectivo sólo al retirar), se usa el primero disponible
   const payment: Pay = chosen === 'efectivo' && !(cashOnPickup && shipId === 'retiro') ? (mpEnabled ? 'mercadopago' : 'transferencia') : chosen
   const subtotal = lines.reduce((a, l) => a + l.qty * l.price, 0)
-  const discount = payment === 'transferencia' ? Math.round(subtotal * transferPct / 100) : 0
-  const total = subtotal - discount + (ship?.price ?? 0)
+  const couponDiscount = coupon?.discount ?? 0
+  const discount = payment === 'transferencia' ? Math.round((subtotal - couponDiscount) * transferPct / 100) : 0
+  const shipCost = coupon?.freeShipping ? 0 : ship?.price ?? 0
+  const total = subtotal - couponDiscount - discount + shipCost
+  const applyCoupon = async () => { setCouponMsg(''); const r = await previewCoupon(couponInput, subtotal); if (r.ok) setCoupon(r); else { setCoupon(null); setCouponMsg(r.error) } }
   const pays: { id: Pay; label: string; desc: string }[] = [
     ...(mpEnabled ? [{ id: 'mercadopago' as Pay, label: 'Mercado Pago', desc: 'Tarjeta de crédito, débito, dinero en cuenta o cuotas. Pagás en Mercado Pago y volvés a la tienda.' }] : []),
     { id: 'transferencia', label: `Transferencia bancaria${transferPct ? ` · ${transferPct}% OFF` : ''}`, desc: 'Al confirmar te mostramos los datos para transferir.' },
@@ -39,7 +61,7 @@ export function Checkout({ shipping, transferPct, mpEnabled, cashOnPickup }: { s
   const submit = (e: React.FormEvent) => {
     e.preventDefault(); setErr('')
     start(async () => {
-      const r = await checkout({ lines: lines.map(l => ({ productId: l.productId, qty: l.qty, variant: l.variant })), customer: { ...form, address: form.address || undefined, zip: form.zip || undefined }, payment, shippingId: shipId })
+      const r = await checkout({ lines: lines.map(l => ({ productId: l.productId, qty: l.qty, variant: l.variant })), customer: { ...form, address: form.address || undefined, zip: form.zip || undefined }, payment, shippingId: shipId, coupon: coupon?.code })
       if (!r.ok) { setErr(r.error); return }
       if (payment !== 'mercadopago') clear()
       if (r.redirect.startsWith('http')) window.location.href = r.redirect
@@ -52,24 +74,24 @@ export function Checkout({ shipping, transferPct, mpEnabled, cashOnPickup }: { s
       <h1><span>Finalizar compra</span></h1>
       <form className="sf-checkout" onSubmit={submit}>
         <div>
-          <p className="lbl" style={{ marginTop: 0 }}>Tus datos</p>
+          <p className="lbl" style={{ marginTop: 0 }}>Tus datos {!me && <span style={{ fontWeight: 400, fontSize: 13 }}>· <Link href="/cuenta?next=/checkout" style={{ textDecoration: 'underline' }}>¿Ya tenés cuenta? Ingresá</Link></span>}</p>
           <input className="sf-input" required autoComplete="name" placeholder="Nombre y apellido" value={form.name} onChange={set('name')} />
           <input className="sf-input" required type="email" autoComplete="email" inputMode="email" placeholder="Email" value={form.email} onChange={set('email')} />
           <input className="sf-input" required type="tel" autoComplete="tel" inputMode="tel" placeholder="Teléfono / WhatsApp" value={form.phone} onChange={set('phone')} />
 
           <p className="lbl">Envío</p>
-          {shipping.map(s => (
+          <input className="sf-input" autoComplete="postal-code" inputMode="numeric" maxLength={8} placeholder="Tu código postal (ej. 2900)" value={form.zip} onChange={set('zip')} aria-label="Código postal" />
+          {quoting && <p className="sf-small" style={{ textAlign: 'left', marginTop: -6 }}>Calculando envío…</p>}
+          {!/\d{4}/.test(form.zip) && <p className="sf-small" style={{ textAlign: 'left', marginTop: -6 }}>Poné tu código postal para ver los envíos a tu casa.</p>}
+          {quotes.map(s => (
             <label key={s.id} className={'sf-choice' + (shipId === s.id ? ' on' : '')}>
               <input type="radio" name="ship" checked={shipId === s.id} onChange={() => setShipId(s.id)} />
-              <div style={{ flex: 1 }}><div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}><b>{s.name}</b><span>{s.price ? money(s.price) : 'Gratis'}</span></div><div className="d">{s.description}</div></div>
+              <div style={{ flex: 1 }}><div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}><b>{s.name}</b><span>{s.price ? money(s.price) : 'Gratis'}</span></div><div className="d">{s.description}{s.days ? ` · ${s.days}` : ''}</div></div>
             </label>
           ))}
           {shipId !== 'retiro' && <>
             <input className="sf-input" required autoComplete="street-address" placeholder="Dirección (calle, número, piso)" value={form.address} onChange={set('address')} style={{ marginTop: 8 }} />
-            <div className="two">
-              <input className="sf-input" autoComplete="address-level2" placeholder="Ciudad" value={form.city} onChange={set('city')} />
-              <input className="sf-input" autoComplete="postal-code" inputMode="numeric" placeholder="Código postal" value={form.zip} onChange={set('zip')} />
-            </div>
+            <input className="sf-input" autoComplete="address-level2" placeholder="Ciudad" value={form.city} onChange={set('city')} />
           </>}
 
           <p className="lbl">Medio de pago</p>
@@ -85,8 +107,13 @@ export function Checkout({ shipping, transferPct, mpEnabled, cashOnPickup }: { s
         <div className="summary">
           {lines.map(l => <div key={l.productId + l.variant} className="sf-row"><span>{l.qty} × {l.name}{l.variant ? ` (${l.variant})` : ''}</span><span>{money(l.qty * l.price)}</span></div>)}
           <div className="sf-row"><span>Subtotal</span><span>{money(subtotal)}</span></div>
+          <div className="sf-coupon">
+            {coupon ? <div className="sf-row" style={{ color: '#2a7' }}><span>Cupón {coupon.code} · {coupon.label} <button type="button" className="link" onClick={() => setCoupon(null)}>quitar</button></span><span>{couponDiscount ? `−${money(couponDiscount)}` : ''}</span></div>
+              : <div style={{ display: 'flex', gap: 8, padding: '10px 0' }}><input className="sf-input" style={{ margin: 0, height: 40 }} placeholder="¿Tenés un cupón de descuento?" value={couponInput} onChange={e => setCouponInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); applyCoupon() } }} aria-label="Cupón" /><button type="button" className="sf-btn ghost" style={{ height: 40 }} disabled={!couponInput.trim()} onClick={applyCoupon}>Aplicar</button></div>}
+            {couponMsg && <div style={{ color: '#a00', fontSize: 13, paddingBottom: 6 }}>{couponMsg}</div>}
+          </div>
           {discount > 0 && <div className="sf-row" style={{ color: '#2a7' }}><span>Descuento transferencia</span><span>−{money(discount)}</span></div>}
-          <div className="sf-row"><span>Envío</span><span>{ship?.price ? money(ship.price) : 'Gratis'}</span></div>
+          <div className="sf-row"><span>Envío</span><span>{shipCost ? money(shipCost) : 'Gratis'}</span></div>
           <div className="sf-row total"><span>Total</span><span>{money(total)}</span></div>
         </div>
       </form>

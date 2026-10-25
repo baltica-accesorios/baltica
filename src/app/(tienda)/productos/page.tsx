@@ -1,3 +1,4 @@
+import { currentCustomer } from '@/lib/customer-auth'
 import { Category } from '@/storefront/pages/Category'
 import { publicProducts } from '@/lib/data'
 
@@ -5,5 +6,5 @@ export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Productos' }
 
 export default async function Page() {
-  return <Category all products={await publicProducts()} />
+  return <Category all products={await publicProducts({}, (await currentCustomer())?.wholesale)} />
 }

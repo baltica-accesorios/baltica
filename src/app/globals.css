@@ -188,3 +188,23 @@
 @media (max-width: 640px) { .sf-buy { height: 32px; padding: 0 14px; font-size: 12px; } .sf-announce { font-size: 12.5px; } }
 
 .sf-opt.none { color: #aaa; text-decoration: line-through; border-style: dashed; }
+.sf-coupon .link { background: none; border: 0; text-decoration: underline; color: #666; cursor: pointer; font-size: 12px; margin-left: 6px; }
+
+/* ===== Cuenta, formularios ===== */
+.sf-form { max-width: 460px; margin: 0 auto 80px; }
+.sf-form .two { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+.sf-tabs { display: flex; border-bottom: 1px solid #ddd; margin-bottom: 20px; }
+.sf-tabs button { flex: 1; background: none; border: 0; padding: 12px; font: inherit; font-weight: 700; cursor: pointer; color: #888; border-bottom: 2px solid transparent; }
+.sf-tabs button.on { color: #000; border-color: #000; }
+.sf-small { font-size: 14px; color: #555; text-align: center; line-height: 1.5; }
+.sf-small a { text-decoration: underline; }
+.sf-okmsg { background: #eef7f1; color: #1d6b3a; border-radius: 6px; padding: 10px 14px; font-size: 14px; margin: 10px 0; }
+.sf-account { display: grid; grid-template-columns: 1.4fr 1fr; gap: 50px; margin-bottom: 80px; }
+.sf-account h2 { font-size: 18px; margin: 0 0 14px; }
+.sf-orders { list-style: none; padding: 0; margin: 0; }
+.sf-orders li { display: flex; justify-content: space-between; gap: 16px; padding: 14px 0; border-bottom: 1px solid #eee; font-size: 14px; }
+.sf-orders li span { color: #888; margin-left: 6px; }
+.sf-orders .items { color: #555; margin-top: 4px; }
+.sf-orders .st { font-size: 12px; color: #666; margin-top: 4px; }
+.sf-wholesale-tag { display: inline-block; font-size: 11px; font-weight: 700; background: #000; color: #fff; padding: 2px 6px; border-radius: 3px; margin-left: 6px; vertical-align: middle; }
+@media (max-width: 760px) { .sf-account { grid-template-columns: 1fr; gap: 30px; } .sf-form .two { grid-template-columns: 1fr; } }

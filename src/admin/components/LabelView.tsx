@@ -4,9 +4,10 @@ import { Barcode } from './Scanner'
 import { money } from '@/lib/format'
 import { currentPrice } from '@/lib/pricing'
 import type { LabelField, LabelLayout, LabelTemplate, Product } from '@/lib/types'
+import { LOGO } from '@/data/categories'
 
-export const FIELD_LABEL: Record<LabelField, string> = { store: 'Nombre de la tienda', name: 'Nombre del producto', barcode: 'Código de barras', price: 'Precio', sku: 'SKU (código interno)', text: 'Texto libre' }
-export const ALL_FIELDS: LabelField[] = ['store', 'name', 'barcode', 'price', 'sku', 'text']
+export const FIELD_LABEL: Record<LabelField, string> = { logo: 'Logo', store: 'Nombre de la tienda', name: 'Nombre del producto', barcode: 'Código de barras', price: 'Precio', sku: 'SKU (código interno)', text: 'Texto libre' }
+export const ALL_FIELDS: LabelField[] = ['logo', 'store', 'name', 'barcode', 'price', 'sku', 'text']
 
 /** Diseño de una plantilla; las plantillas viejas (sin diseño guardado) se convierten con valores proporcionados a su tamaño. */
 export function layoutOf(t: LabelTemplate): LabelLayout {
@@ -38,6 +39,7 @@ export function LabelView({ t, p, layout }: { t: LabelTemplate; p: Product; layo
   const one: React.CSSProperties = { maxWidth: '100%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flexShrink: 0 }
   const el = (f: LabelField) => {
     switch (f) {
+      case 'logo': return <img key={f} src={l.logoUrl || LOGO} alt="" style={{ height: `${l.logoHeight ?? Math.max(3, Math.round(t.heightMm * 0.25))}mm`, maxWidth: '100%', objectFit: 'contain', flexShrink: 0, filter: l.logoBW ? 'grayscale(1) contrast(1.6)' : undefined }} />
       case 'store': return l.storeText ? <div key={f} style={{ ...one, fontSize: `${l.storeSize}pt`, fontWeight: 800, letterSpacing: '0.3mm' }}>{l.storeText}</div> : null
       case 'name': return <div key={f} style={{ maxWidth: '100%', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', fontSize: `${l.nameSize}pt`, fontWeight: 600, flexShrink: 0 }}>{p.name.split(' (')[0]}</div>
       case 'barcode': return <div key={f} style={{ maxWidth: '100%', lineHeight: 0, flexShrink: 0 }}><Barcode value={p.barcode} height={l.barcodeHeight * MM} width={barW} fontSize={Math.max(7, Math.round(innerW * MM / 14))} displayValue={l.barcodeNumber} /></div>

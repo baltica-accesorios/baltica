@@ -4,13 +4,13 @@ import { ImagePlus, X, Star } from 'lucide-react'
 import { uploadImage } from '../actions'
 
 /** Achica la foto en el navegador (máx. 1400 px, WebP) antes de subirla: carga rápido en la tienda y ocupa poco. */
-async function shrink(file: File): Promise<Blob> {
+export async function shrink(file: File, max = 1400, type = 'image/webp'): Promise<Blob> {
   const bmp = await createImageBitmap(file)
-  const scale = Math.min(1, 1400 / Math.max(bmp.width, bmp.height))
+  const scale = Math.min(1, max / Math.max(bmp.width, bmp.height))
   const canvas = document.createElement('canvas')
   canvas.width = Math.round(bmp.width * scale); canvas.height = Math.round(bmp.height * scale)
   canvas.getContext('2d')!.drawImage(bmp, 0, 0, canvas.width, canvas.height)
-  return new Promise((res, rej) => canvas.toBlob(b => b ? res(b) : rej(new Error('No se pudo procesar la imagen')), 'image/webp', 0.85))
+  return new Promise((res, rej) => canvas.toBlob(b => b ? res(b) : rej(new Error('No se pudo procesar la imagen')), type, 0.9))
 }
 
 export function ImageUpload({ images, onChange }: { images: string[]; onChange: (imgs: string[]) => void }) {

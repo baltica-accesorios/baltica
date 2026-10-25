@@ -36,6 +36,27 @@
       "when": 1792944428803,
       "tag": "0004_stock_por_variante",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792944775253,
+      "tag": "0005_cupones",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792944944018,
+      "tag": "0006_cuentas_clientes",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792944944519,
+      "tag": "0007_quitar_wholesale_bool",
+      "breakpoints": true
     }
   ]
 }

@@ -10,6 +10,8 @@ import { endSession, hashPassword, requireUser } from '@/lib/auth'
 import { getSale, getSettings } from '@/lib/data'
 import { adjustStock as adjust, changeSaleStatus, createSale, moveStock, setStock, StockError } from '@/lib/stock'
 import { ean13 } from '@/lib/format'
+import { normCode } from '@/lib/coupons'
+import { sendEmail, siteUrl } from '@/lib/email'
 import { AiUnavailable, readInvoice, type InvoiceReading } from '@/lib/ai'
 import type { LabelTemplate, MovementReason, PaymentMethod, Product, Purchase, Sale, SaleStatus, Settings } from '@/lib/types'
 
@@ -209,6 +211,48 @@ export async function deleteTemplate(id: string): Promise<Result> {
   const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(schema.labelTemplates)
   if (n <= 1) return fail('Tiene que quedar al menos una plantilla')
   await db.delete(schema.labelTemplates).where(eq(schema.labelTemplates.id, id))
+  refresh()
+  return { ok: true }
+}
+
+// ---------- Cupones ----------
+
+export async function saveCoupon(c: { code: string; type: 'pct' | 'fixed' | 'envio'; value: number; minAmount: number; endsAt: string | null; maxUses: number | null; active: boolean }, isNew: boolean): Promise<Result> {
+  await requireUser('duena')
+  const code = normCode(c.code)
+  if (!/^[A-Z0-9_-]{3,30}$/.test(code)) return fail('El código tiene que tener entre 3 y 30 letras o números, sin espacios')
+  if (c.type === 'pct' && !(c.value > 0 && c.value <= 100)) return fail('El porcentaje tiene que estar entre 1 y 100')
+  if (c.type === 'fixed' && !(c.value > 0)) return fail('Indicá el monto del descuento')
+  const values = { type: c.type, value: c.type === 'envio' ? 0 : Math.round(c.value), minAmount: Math.max(0, Math.round(c.minAmount || 0)), endsAt: c.endsAt ? new Date(c.endsAt) : null, maxUses: c.maxUses && c.maxUses > 0 ? Math.round(c.maxUses) : null, active: c.active }
+  if (isNew) {
+    const [dup] = await db.select({ code: schema.coupons.code }).from(schema.coupons).where(eq(schema.coupons.code, code))
+    if (dup) return fail('Ya existe un cupón con ese código')
+    await db.insert(schema.coupons).values({ code, ...values })
+  } else await db.update(schema.coupons).set(values).where(eq(schema.coupons.code, code))
+  refresh()
+  return { ok: true }
+}
+
+export async function deleteCoupon(code: string): Promise<Result> {
+  await requireUser('duena')
+  await db.delete(schema.coupons).where(eq(schema.coupons.code, code))
+  refresh()
+  return { ok: true }
+}
+
+// ---------- Clientes y mensajes ----------
+
+export async function setWholesale(id: number, status: 'aprobado' | 'rechazado' | 'none'): Promise<Result> {
+  await requireUser('duena')
+  const [c] = await db.update(schema.customers).set({ wholesaleStatus: status }).where(eq(schema.customers.id, id)).returning({ name: schema.customers.name, email: schema.customers.email })
+  if (c?.email && status === 'aprobado') await sendEmail(c.email, 'Tu cuenta mayorista de Báltica está aprobada', '¡Cuenta mayorista aprobada!', [`Hola ${c.name.split(' ')[0]}, ya podés ver los precios mayoristas en toda la tienda. Ingresá con tu email y contraseña.`], { label: 'Ir a la tienda', url: `${siteUrl()}/cuenta` })
+  refresh()
+  return { ok: true }
+}
+
+export async function setMessageHandled(id: number, handled: boolean): Promise<Result> {
+  await requireUser()
+  await db.update(schema.messages).set({ handled }).where(eq(schema.messages.id, id))
   refresh()
   return { ok: true }
 }

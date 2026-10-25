@@ -23,7 +23,7 @@ export async function verifyPassword(pw: string, stored: string) {
   return timingSafeEqual(key, Buffer.from(keyHex, 'hex'))
 }
 
-const sha = (s: string) => createHash('sha256').update(s).digest('hex')
+export const sha = (s: string) => createHash('sha256').update(s).digest('hex')
 
 export async function startSession(userId: number) {
   const token = randomBytes(32).toString('base64url')

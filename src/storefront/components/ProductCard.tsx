@@ -26,7 +26,7 @@ export function ProductCard({ p }: { p: PublicProduct }) {
         {out && <span className="sf-off oos-tag">SIN STOCK</span>}
       </Link>
       <h3><Link href={productPath(p)}>{p.name}</Link></h3>
-      <p className="price"><Price p={p} /></p>
+      <p className="price"><Price p={p} />{p.wholesale && <span className="sf-wholesale-tag">MAYORISTA</span>}</p>
       {quick ? <button className="sf-btn sf-buy" onClick={() => add(p, 1)}>Comprar</button>
         : <Link href={productPath(p)} className="sf-btn sf-buy">{out ? 'Ver' : 'Comprar'}</Link>}
     </div>

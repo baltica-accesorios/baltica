@@ -1,7 +1,9 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { CATEGORIES, categoryName, subcategoryName } from '@/data/categories'
-import { getSettings, publicProductBySlug, publicProducts } from '@/lib/data'
+import { publicProductBySlug, publicProducts } from '@/lib/data'
+import { quoteShipping } from '@/lib/shipping'
+import { currentCustomer } from '@/lib/customer-auth'
 import { Category } from '@/storefront/pages/Category'
 import { ProductPage } from '@/storefront/pages/Product'
 import { INFO, InfoPage } from '@/storefront/pages/Misc'
@@ -40,9 +42,8 @@ export default async function Page({ params }: Props) {
   const r = resolve((await params).slug)
   if (!r) notFound()
   if (r.kind === 'info') return <InfoPage page={r.page} />
-  if (r.kind === 'category') return <Category key={r.cat + r.sub} cat={r.cat} sub={r.sub} products={await publicProducts({ category: r.cat, subcategory: r.sub })} />
-  const p = await publicProductBySlug(r.slug)
+  if (r.kind === 'category') return <Category key={r.cat + r.sub} cat={r.cat} sub={r.sub} products={await publicProducts({ category: r.cat, subcategory: r.sub }, (await currentCustomer())?.wholesale)} />
+  const p = await publicProductBySlug(r.slug, (await currentCustomer())?.wholesale)
   if (!p) notFound()
-  const s = await getSettings()
-  return <ProductPage key={p.id} p={p} shipping={s.shippingOptions} />
+  return <ProductPage key={p.id} p={p} shipping={await quoteShipping('', 1)} />
 }

@@ -67,6 +67,7 @@ export interface NewSale {
   customer?: Customer | null
   seller?: string | null
   note?: string | null
+  couponCode?: string | null
   status: SaleStatus
   applyStock: boolean
   by: string
@@ -88,7 +89,7 @@ export async function createSale(s: NewSale) {
     const shipping = s.shipping ?? 0
     const [sale] = await tx.insert(schema.sales).values({
       channel: s.channel, subtotal, discount, shipping, total: subtotal - discount + shipping, payment: s.payment, status: s.status,
-      customer: s.customer ?? null, shippingMethod: s.shippingMethod ?? null, seller: s.seller ?? null, note: s.note ?? null, stockApplied: s.applyStock,
+      customer: s.customer ?? null, shippingMethod: s.shippingMethod ?? null, seller: s.seller ?? null, note: s.note ?? null, couponCode: s.couponCode ?? null, stockApplied: s.applyStock,
     }).returning()
     await tx.insert(schema.saleItems).values(items.map(i => ({ ...i, saleNumber: sale.number })))
     if (s.applyStock) await moveItems(tx, items, -1, s.channel === 'local' ? 'venta_local' : 'venta_online', s.by, saleId(sale.number))

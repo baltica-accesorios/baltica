@@ -63,7 +63,7 @@ export function StoreLayout({ contact, children }: { contact: StoreContact; chil
             </nav>
             <div className="sf-icons">
               <button aria-label="Buscar" onClick={() => setSearchOpen(true)}><Search size={22} strokeWidth={1.6} /></button>
-              <a aria-label="Escribinos por WhatsApp" href={`https://wa.me/${contact.whatsapp}`} target="_blank" rel="noreferrer" className="sf-icon-account"><User size={22} strokeWidth={1.6} /></a>
+              <Link aria-label="Mi cuenta" href="/cuenta" className="sf-icon-account"><User size={22} strokeWidth={1.6} /></Link>
               <button aria-label="Carrito" onClick={() => setCartOpen(true)}><ShoppingBag size={22} strokeWidth={1.6} />{mounted && count > 0 && <span className="sf-badge">{count}</span>}</button>
             </div>
           </div>

@@ -68,6 +68,7 @@ export function Sales({ sales }: { sales: Sale[] }) {
               {open.customer.phone && <a className="inline-flex items-center gap-1 text-emerald-700 hover:underline" target="_blank" rel="noreferrer" href={`https://wa.me/${waNumber(open.customer.phone)}?text=${encodeURIComponent(`Hola ${open.customer.name.split(' ')[0]}! Te escribimos de Báltica por tu pedido #${open.number}`)}`}><MessageCircle size={14} /> Escribirle por WhatsApp</a>}
             </div>}
             {open.shippingMethod && <div className="mt-2 text-sm"><span className="text-stone-500">Envío:</span> {open.shippingMethod}</div>}
+            {open.couponCode && <div className="mt-1 text-sm"><span className="text-stone-500">Cupón:</span> <span className="font-mono">{open.couponCode}</span></div>}
             {open.note && <div className="mt-2 text-sm bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">{open.note}</div>}
             <table className="w-full text-sm mt-4"><tbody className="divide-y">{open.items.map((i, k) => <tr key={k}><td className="py-2">{i.qty}× {i.name}{i.variant && <span className="text-stone-500"> ({i.variant})</span>}</td><td className="py-2 text-right">{money(i.qty * i.unitPrice)}</td></tr>)}</tbody></table>
             {open.discount > 0 && <div className="flex justify-between text-sm text-red-600 py-1"><span>Descuento</span><span>-{money(open.discount)}</span></div>}
