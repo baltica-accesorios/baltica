@@ -2,6 +2,7 @@
 import { and, asc, desc, eq, gte, inArray, sql } from 'drizzle-orm'
 import { db, schema } from '@/db'
 import { DEFAULT_SETTINGS, DEFAULT_TEMPLATES } from './defaults'
+import { offerActive } from './pricing'
 import type { LabelTemplate, MovementReason, PaymentMethod, Product, PublicProduct, Purchase, Sale, SaleStatus, Settings, StockMovement } from './types'
 
 type ProductRow = typeof schema.products.$inferSelect
@@ -10,7 +11,7 @@ type SaleRow = typeof schema.sales.$inferSelect
 export function toProduct(r: ProductRow): Product {
   return {
     id: r.id, slug: r.slug, name: r.name, category: r.category, subcategory: r.subcategory, material: r.material,
-    price: r.price, offerPrice: r.offerPrice, wholesalePrice: r.wholesalePrice, cost: r.cost, stock: r.stock,
+    price: r.price, offerPrice: r.offerPrice, offerEndsAt: r.offerEndsAt?.toISOString() ?? null, wholesalePrice: r.wholesalePrice, cost: r.cost, stock: r.stock,
     minStock: r.minStock, markupPct: r.markupPct, sku: r.sku, barcode: r.barcode, image: r.image,
     images: r.images.length ? r.images : [r.image], description: r.description, variants: r.variants,
     createdAt: r.createdAt.toISOString(), active: r.active,
@@ -18,8 +19,10 @@ export function toProduct(r: ProductRow): Product {
 }
 
 export function toPublic(p: Product): PublicProduct {
-  const { id, slug, name, category, subcategory, price, offerPrice, stock, image, images, description, variants, createdAt } = p
-  return { id, slug, name, category, subcategory, price, offerPrice, stock, image, images, description, variants, createdAt }
+  const { id, slug, name, category, subcategory, price, stock, image, images, description, variants, createdAt } = p
+  // Las ofertas vencidas no llegan a la tienda
+  const on = offerActive(p)
+  return { id, slug, name, category, subcategory, price, offerPrice: on ? p.offerPrice : null, offerEndsAt: on ? p.offerEndsAt : null, stock, image, images, description, variants, createdAt }
 }
 
 export const saleId = (n: number) => 's' + n
@@ -111,8 +114,10 @@ export async function listPurchases(): Promise<Purchase[]> {
 }
 
 export async function listTemplates(): Promise<LabelTemplate[]> {
-  const rows = await db.select().from(schema.labelTemplates).orderBy(asc(schema.labelTemplates.id))
-  return rows.length ? rows : DEFAULT_TEMPLATES
+  let rows = await db.select().from(schema.labelTemplates).orderBy(asc(schema.labelTemplates.id))
+  // Primera vez: se guardan las plantillas de fábrica para que se puedan editar
+  if (!rows.length) { await db.insert(schema.labelTemplates).values(DEFAULT_TEMPLATES).onConflictDoNothing(); rows = await db.select().from(schema.labelTemplates).orderBy(asc(schema.labelTemplates.id)) }
+  return rows.map(r => ({ ...r, layout: r.layout ?? null }))
 }
 
 export async function adminBadges(threshold: number) {

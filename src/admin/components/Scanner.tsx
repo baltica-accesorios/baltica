@@ -70,5 +70,5 @@ export function Barcode({ value, height = 40, width = 1.4, fontSize = 11, displa
     })
     return () => { cancelled = true }
   }, [value, height, width, fontSize, displayValue])
-  return <svg ref={ref} />
+  return <svg ref={ref} style={{ maxWidth: '100%', height: 'auto' }} />
 }

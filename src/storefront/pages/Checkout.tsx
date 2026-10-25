@@ -28,7 +28,7 @@ export function Checkout({ shipping, transferPct, mpEnabled, cashOnPickup }: { s
   const total = subtotal - discount + (ship?.price ?? 0)
   const pays: { id: Pay; label: string; desc: string }[] = [
     ...(mpEnabled ? [{ id: 'mercadopago' as Pay, label: 'Mercado Pago', desc: 'Tarjeta de crédito, débito, dinero en cuenta o cuotas. Pagás en Mercado Pago y volvés a la tienda.' }] : []),
-    { id: 'transferencia', label: `Transferencia bancaria${transferPct ? ` · ${transferPct}% OFF` : ''}`, desc: 'Te mostramos el alias al confirmar. Reservamos tu pedido 48 h.' },
+    { id: 'transferencia', label: `Transferencia bancaria${transferPct ? ` · ${transferPct}% OFF` : ''}`, desc: 'Al confirmar te mostramos los datos para transferir.' },
     ...(cashOnPickup && shipId === 'retiro' ? [{ id: 'efectivo' as Pay, label: 'Efectivo al retirar', desc: 'Pagás en el showroom cuando lo retirás.' }] : []),
   ]
 

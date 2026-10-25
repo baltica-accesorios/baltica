@@ -100,7 +100,7 @@ export async function saveProduct(p: Product): Promise<Result<{ id: string }>> {
   const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(schema.products)
   const values = {
     slug, name: p.name.trim(), category: p.category, subcategory: p.subcategory || null, material: p.material,
-    price: Math.round(p.price), offerPrice: p.offerPrice ? Math.round(p.offerPrice) : null, wholesalePrice: p.wholesalePrice ? Math.round(p.wholesalePrice) : null,
+    price: Math.round(p.price), offerPrice: p.offerPrice ? Math.round(p.offerPrice) : null, offerEndsAt: p.offerPrice && p.offerEndsAt ? new Date(p.offerEndsAt) : null, wholesalePrice: p.wholesalePrice ? Math.round(p.wholesalePrice) : null,
     cost: Math.round(p.cost || 0), minStock: p.minStock ?? null, markupPct: p.markupPct ?? null,
     sku: p.sku || `BA-${p.category.slice(0, 3).toUpperCase()}-${String(n + 1).padStart(3, '0')}`, barcode: p.barcode,
     image: p.images?.[0] ?? p.image, images: p.images?.length ? p.images : [p.image], description: p.description || null,
@@ -132,6 +132,18 @@ export async function bulkPriceUpdate(ids: string[], pctChange: number): Promise
   if (!ids.length || !Number.isFinite(pctChange) || pctChange <= -100) return fail('Porcentaje inválido')
   const { roundTo: step } = await getSettings()
   await db.update(schema.products).set({ price: sql`greatest(${step}, round(${schema.products.price} * ${1 + pctChange / 100} / ${step}) * ${step})::int` }).where(inArray(schema.products.id, ids))
+  refresh()
+  return { ok: true }
+}
+
+/** Pone en oferta un % sobre el precio actual, con vencimiento opcional ("¡Sólo por hoy!"). pct = 0 quita la oferta. */
+export async function bulkOffer(ids: string[], pct: number, endsAt: string | null): Promise<Result> {
+  await requireUser('duena')
+  if (!ids.length || !Number.isFinite(pct) || pct < 0 || pct >= 100) return fail('Porcentaje inválido')
+  const ends = endsAt ? new Date(endsAt) : null
+  if (ends && ends <= new Date()) return fail('La fecha de fin tiene que ser en el futuro')
+  if (pct === 0) await db.update(schema.products).set({ offerPrice: null, offerEndsAt: null }).where(inArray(schema.products.id, ids))
+  else await db.update(schema.products).set({ offerPrice: sql`round(${schema.products.price} * ${1 - pct / 100})::int`, offerEndsAt: ends }).where(inArray(schema.products.id, ids))
   refresh()
   return { ok: true }
 }
@@ -188,6 +200,15 @@ export async function saveAnthropicKey(key: string): Promise<Result> {
 export async function upsertTemplate(t: LabelTemplate): Promise<Result> {
   await requireUser()
   await db.insert(schema.labelTemplates).values(t).onConflictDoUpdate({ target: schema.labelTemplates.id, set: { ...t } })
+  refresh()
+  return { ok: true }
+}
+
+export async function deleteTemplate(id: string): Promise<Result> {
+  await requireUser()
+  const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(schema.labelTemplates)
+  if (n <= 1) return fail('Tiene que quedar al menos una plantilla')
+  await db.delete(schema.labelTemplates).where(eq(schema.labelTemplates.id, id))
   refresh()
   return { ok: true }
 }

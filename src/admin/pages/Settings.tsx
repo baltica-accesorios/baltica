@@ -61,6 +61,14 @@ export function SettingsPage({ users, mp }: { users: UserRow[]; mp: { enabled: b
           <div className="text-xs text-stone-500 mt-2">Precio 0 = gratis. &quot;Retiro en showroom&quot; no se puede borrar (es el que habilita el pago en efectivo).</div>
         </Card>
 
+        <Card title="Aviso arriba de la tienda">
+          <label className="text-sm block">Texto de la franja (vacío = no se muestra)<input className={input + ' mt-1'} value={settings.announcement} onChange={e => set({ announcement: e.target.value })} placeholder="¡SOLO POR HOY DOMINGO! -20% en muchísimos productos ❤️" /></label>
+          {settings.announcement && <div className="mt-3 bg-black text-white text-center text-sm font-bold py-2 px-3 rounded">{settings.announcement}</div>}
+          <div className="text-xs text-stone-500 mt-2">Para poner productos en oferta con fecha de fin, andá a Productos, seleccionalos y usá &quot;Poner en oferta&quot;.</div>
+          <label className="text-sm block mt-4">Google Analytics (ID)<input className={input + ' mt-1 font-mono'} value={settings.gaId} onChange={e => set({ gaId: e.target.value.trim() })} placeholder="G-XXXXXXX" /></label>
+          <div className="text-xs text-stone-500 mt-1">Es el mismo que usaba Empretienda: las estadísticas de visitas siguen sin cortarse.</div>
+        </Card>
+
         <Card title="Datos de contacto de la tienda">
           <label className="text-sm block">WhatsApp (con 549, sin espacios)<input className={input + ' mt-1'} value={settings.whatsapp} onChange={e => set({ whatsapp: e.target.value.replace(/\D/g, '') })} inputMode="numeric" /></label>
           <label className="text-sm block mt-3">Email<input className={input + ' mt-1'} type="email" value={settings.email} onChange={e => set({ email: e.target.value })} /></label>

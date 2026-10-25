@@ -6,6 +6,8 @@ import { categoryName, subcategoryName } from '@/data/categories'
 import { money } from '@/lib/format'
 import type { PublicProduct, ShippingOption } from '@/lib/types'
 import { useCart } from '../cart'
+import { Price } from '../components/ProductCard'
+import { offerEndLabel, offerPct } from '@/lib/pricing'
 
 export function ProductPage({ p, shipping }: { p: PublicProduct; shipping: ShippingOption[] }) {
   const add = useCart(s => s.add)
@@ -29,7 +31,8 @@ export function ProductPage({ p, shipping }: { p: PublicProduct; shipping: Shipp
         </div>
         <div>
           <h1>{p.name}</h1>
-          <p className="price">{p.offerPrice ? <><del>{money(p.price)}</del>{money(p.offerPrice)}</> : money(p.price)}</p>
+          <p className="price"><Price p={p} /></p>
+          {offerPct(p) > 0 && <span className="sf-off">{offerPct(p)}% OFF{p.offerEndsAt ? ` hasta el ${offerEndLabel(p.offerEndsAt)} hs` : ''}</span>}
           {p.variants && p.variants.options.length > 0 && <>
             <p className="lbl">{p.variants.attr}</p>
             <div className="opts">{p.variants.options.map(o => <button key={o} className={'sf-opt' + (variant === o ? ' on' : '')} onClick={() => setVariant(o)}>{o}</button>)}</div>

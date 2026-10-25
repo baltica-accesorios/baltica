@@ -11,6 +11,7 @@ export interface Product {
   material: string
   price: number          // precio de venta al público
   offerPrice?: number | null
+  offerEndsAt?: string | null
   wholesalePrice?: number | null
   cost: number           // costo de reposición (último costo de compra)
   stock: number
@@ -27,7 +28,7 @@ export interface Product {
 }
 
 // Lo que ve la tienda pública: sin costo ni datos internos
-export type PublicProduct = Pick<Product, 'id' | 'slug' | 'name' | 'category' | 'subcategory' | 'price' | 'offerPrice' | 'stock' | 'image' | 'images' | 'description' | 'variants' | 'createdAt'>
+export type PublicProduct = Pick<Product, 'id' | 'slug' | 'name' | 'category' | 'subcategory' | 'price' | 'offerPrice' | 'offerEndsAt' | 'stock' | 'image' | 'images' | 'description' | 'variants' | 'createdAt'>
 
 export interface SaleItem {
   productId: string
@@ -98,6 +99,27 @@ export interface LabelTemplate {
   showName: boolean
   showSku: boolean
   description: string
+  layout?: LabelLayout | null
+}
+
+export type LabelField = 'store' | 'name' | 'barcode' | 'price' | 'sku' | 'text'
+export interface LabelLayout {
+  order: LabelField[]          // de arriba hacia abajo; lo que no está, no se imprime
+  align: 'center' | 'left'
+  storeText: string            // ej. "BÁLTICA"
+  customText: string           // texto libre, ej. "Acero quirúrgico" o "Cambios 30 días"
+  nameSize: number             // tamaños de letra en puntos
+  priceSize: number
+  skuSize: number
+  storeSize: number
+  textSize: number
+  barcodeHeight: number        // en mm
+  barcodeNumber: boolean       // números debajo de las barras
+  priceBold: boolean
+  showCents: boolean
+  border: boolean
+  gapMm: number                // separación entre etiquetas
+  paddingMm: number
 }
 
 export interface ShippingOption { id: string; name: string; price: number; description: string }
@@ -116,6 +138,8 @@ export interface Settings {
   whatsapp: string
   email: string
   instagram: string
+  announcement: string      // franja de aviso arriba de la tienda (vacío = no se muestra)
+  gaId: string              // Google Analytics (el mismo de Empretienda, para no perder las estadísticas)
 }
 
 export interface User { id: number; name: string; email: string; role: 'duena' | 'vendedora' }

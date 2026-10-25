@@ -47,7 +47,6 @@ export default async function Page({ searchParams }: { searchParams: Promise<Rec
         {sale.payment === 'transferencia' ? <div style={{ background: '#f5f5f5', borderRadius: 6, padding: 20, margin: '20px 0', textAlign: 'left' }}>
           <p style={{ margin: '0 0 8px', fontWeight: 700 }}>Transferí {money(sale.total)} a:</p>
           <p style={{ margin: 0, whiteSpace: 'pre-line' }}>{settings.transferInfo}</p>
-          <p style={{ margin: '12px 0 0', fontSize: 14, color: '#666' }}>Mandanos el comprobante por WhatsApp. Reservamos tu pedido por 48 horas.</p>
         </div> : <p>Lo pagás en efectivo cuando lo retirás en el showroom.</p>}
       </>}
       <p style={{ margin: '30px 0 80px' }}><a href={wa} target="_blank" rel="noreferrer" className="sf-btn">Escribinos por WhatsApp</a></p>

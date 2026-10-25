@@ -5,6 +5,8 @@
 .sf { font-family: var(--font-lato), sans-serif; color: #000; background: #fff; -webkit-font-smoothing: antialiased; }
 .sf * { box-sizing: border-box; }
 .sf a { color: inherit; text-decoration: none; }
+.sf a.sf-btn { color: #fff; }
+.sf a.sf-btn.ghost { color: #000; }
 .sf .container { max-width: 1320px; margin: 0 auto; padding: 0 40px; }
 @media (max-width: 960px) { .sf .container { padding: 0 20px; } }
 
@@ -16,6 +18,8 @@
 .sf-nav .dd { position: relative; }
 .sf-nav .dd-menu { position: absolute; top: 100%; left: -20px; margin-top: 30px; background: #fff; box-shadow: 0 5px 12px rgba(0,0,0,.15); padding: 20px 25px; display: none; min-width: 230px; max-height: 70vh; overflow: auto; }
 .sf-nav .dd:hover .dd-menu, .sf-nav .dd:focus-within .dd-menu { display: block; }
+/* Puente invisible entre el botón y el desplegable: así el mouse puede bajar sin que se cierre */
+.sf-nav .dd:hover::after { content: ''; position: absolute; top: 100%; left: -30px; right: -30px; height: 34px; }
 .sf-nav .dd-menu a { display: block; font-size: 15px; padding: 5px 0; white-space: nowrap; }
 .sf-nav .dd-menu a:hover { text-decoration: underline; }
 .sf-nav .dd-menu .sub { padding-left: 14px; font-weight: 300; }
@@ -170,3 +174,15 @@
   .sf-bc .sep { margin: 0 6px; }
   .sf-page h1 { font-size: 22px; margin: 20px 0 24px; }
 }
+
+/* ===== Ofertas, botón Comprar y franja de aviso (como en Empretienda) ===== */
+.sf-card .img { position: relative; display: block; }
+.sf-off { position: absolute; top: 10px; left: 10px; background: #000; color: #fff; font-size: 12px; font-weight: 700; letter-spacing: .3px; padding: 4px 8px; border-radius: 4px; }
+.sf-off.oos-tag { background: #fff; color: #000; border: 1px solid #000; }
+.sf-card .price { flex-wrap: wrap; }
+.sf-card .price del { font-weight: 400; }
+.sf-buy { margin-top: 12px; height: 36px; font-size: 13px; padding: 0 22px; border-radius: 30px; }
+.sf-product .price del { margin: 0 0 0 10px; }
+.sf-product .sf-off { position: static; display: inline-block; margin: -14px 0 24px; }
+.sf-announce { background: #000; color: #fff; text-align: center; font-size: 14px; font-weight: 700; padding: 9px 16px; line-height: 1.35; }
+@media (max-width: 640px) { .sf-buy { height: 32px; padding: 0 14px; font-size: 12px; } .sf-announce { font-size: 12.5px; } }

@@ -1,6 +1,6 @@
 import { pgTable, text, integer, boolean, timestamp, jsonb, serial, customType, index, check, date } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
-import type { Variant, PurchaseLine, Customer, Settings } from '@/lib/types'
+import type { Variant, PurchaseLine, Customer, Settings, LabelLayout } from '@/lib/types'
 
 const bytea = customType<{ data: Buffer }>({ dataType: () => 'bytea' })
 
@@ -15,6 +15,8 @@ export const products = pgTable('products', {
   material: text('material').notNull().default(''),
   price: integer('price').notNull(),
   offerPrice: integer('offer_price'),
+  // La oferta deja de valer sola a esta hora ("¡Sólo por hoy -20%!"). Null = sin vencimiento
+  offerEndsAt: timestamp('offer_ends_at', { withTimezone: true }),
   wholesalePrice: integer('wholesale_price'),
   cost: integer('cost').notNull().default(0),
   // Columna cacheada: siempre se modifica junto con un stock_movement, en la misma transacción
@@ -103,6 +105,8 @@ export const labelTemplates = pgTable('label_templates', {
   showName: boolean('show_name').notNull(),
   showSku: boolean('show_sku').notNull(),
   description: text('description').notNull().default(''),
+  // Diseño elegido en el editor de etiquetas (tamaños de letra, orden, alineación...)
+  layout: jsonb('layout').$type<LabelLayout>(),
 })
 
 // Una sola fila (id = 'main'). Los secretos (API key de Claude) viven en una columna aparte que nunca va al navegador.

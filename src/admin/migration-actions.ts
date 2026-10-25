@@ -24,6 +24,7 @@ const FIELDS: Record<Kind, Field[]> = {
     { key: 'subcategory', label: 'Subcategoría', hints: ['subcategoria', 'subcategoría'] },
     { key: 'price', label: 'Precio de venta', required: true, hints: ['precio'] },
     { key: 'offerPrice', label: 'Precio de oferta / promocional', hints: ['oferta', 'promocional'] },
+    { key: 'offerEndsAt', label: 'Fecha de fin de la oferta', hints: ['fecha oferta', 'fin oferta', 'vencimiento'] },
     { key: 'wholesalePrice', label: 'Precio mayorista', hints: ['mayorista'] },
     { key: 'stock', label: 'Stock / cantidad', hints: ['stock', 'cantidad'] },
     { key: 'sku', label: 'SKU / código interno', hints: ['sku', 'codigo', 'código'] },
@@ -149,6 +150,7 @@ async function importProducts(rows: Record<string, string>[], get: Getter, by: s
     const values = {
       name, category, subcategory, price: Math.round(price),
       offerPrice: (() => { const o = parseMoney(get(r, 'offerPrice')); return o && o < price ? Math.round(o) : null })(),
+      offerEndsAt: parseDate(get(r, 'offerEndsAt')),
       wholesalePrice: (() => { const w = parseMoney(get(r, 'wholesalePrice')); return w ? Math.round(w) : null })(),
       description: get(r, 'description') || null, variants: options.length ? { attr, options } : null, active: yes(get(r, 'visible')), externalId,
       ...(images.length ? { image: images[0], images } : {}),

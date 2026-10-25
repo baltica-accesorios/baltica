@@ -4,6 +4,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { PublicProduct } from '@/lib/types'
+import { currentPrice } from '@/lib/pricing'
 
 export interface CartLine { productId: string; qty: number; variant?: string; name: string; price: number; image: string; stock: number; attr?: string }
 
@@ -16,7 +17,7 @@ interface Cart {
   clear: () => void
 }
 
-export const unitPrice = (p: Pick<PublicProduct, 'price' | 'offerPrice'>) => p.offerPrice ?? p.price
+export const unitPrice = (p: Pick<PublicProduct, 'price' | 'offerPrice' | 'offerEndsAt'>) => currentPrice(p)
 
 export const useCart = create<Cart>()(persist((set) => ({
   lines: [],

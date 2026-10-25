@@ -5,6 +5,7 @@ import { db, schema } from '@/db'
 import { getSettings } from '@/lib/data'
 import { createSale, StockError } from '@/lib/stock'
 import { createPreference, mpEnabled } from '@/lib/mercadopago'
+import { currentPrice } from '@/lib/pricing'
 
 const Input = z.object({
   lines: z.array(z.object({ productId: z.string(), qty: z.number().int().min(1).max(50), variant: z.string().optional() })).min(1).max(50),
@@ -44,7 +45,7 @@ export async function checkout(raw: z.input<typeof Input>): Promise<CheckoutResu
     const wanted = lines.filter(x => x.productId === l.productId).reduce((a, x) => a + x.qty, 0)
     if (p.stock < wanted) return { ok: false, error: p.stock ? `De "${p.name}" quedan sólo ${p.stock}.` : `"${p.name}" se quedó sin stock.` }
   }
-  const items = lines.map(l => { const p = byId.get(l.productId)!; return { productId: p.id, qty: l.qty, unitPrice: p.offerPrice ?? p.price, variant: l.variant ?? null, name: p.name, image: p.image } })
+  const items = lines.map(l => { const p = byId.get(l.productId)!; return { productId: p.id, qty: l.qty, unitPrice: currentPrice(p), variant: l.variant ?? null, name: p.name, image: p.image } })
   const subtotal = items.reduce((a, i) => a + i.qty * i.unitPrice, 0)
   const discount = payment === 'transferencia' ? Math.round(subtotal * settings.transferDiscountPct / 100) : 0
 

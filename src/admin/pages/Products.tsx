@@ -4,7 +4,8 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Plus, Search, Percent, Pencil, Trash2, Sparkles, ArrowLeft, Wand2 } from 'lucide-react'
 import { useAdmin } from '../context'
-import { bulkPriceUpdate, deleteProduct, newBarcode, saveProduct } from '../actions'
+import { bulkOffer, bulkPriceUpdate, deleteProduct, newBarcode, saveProduct } from '../actions'
+import { offerActive, offerPct } from '@/lib/pricing'
 import { ImageUpload } from '../components/ImageUpload'
 import { PageHeader, Card, Hint, btnGhost, btnPrimary, input } from '../components/AdminLayout'
 import { Barcode } from '../components/Scanner'
@@ -12,9 +13,15 @@ import { CATEGORIES, categoryName } from '@/data/categories'
 import { money, moneyShort, pct, roundTo, uid } from '@/lib/format'
 import type { Product } from '@/lib/types'
 
+// Valor para <input type="datetime-local"> en la hora local
+const toLocalInput = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+
 export function Products() {
   const { products, settings } = useAdmin()
   const [busy, setBusy] = useState(false)
+  const [offer, setOffer] = useState('20')
+  const [offerEnd, setOfferEnd] = useState(() => { const d = new Date(); d.setHours(23, 59, 0, 0); return toLocalInput(d) })
+  const runOffer = async (pct: number) => { setBusy(true); const r = await bulkOffer(sel, pct, pct ? offerEnd || null : null); setBusy(false); if (!r.ok) { window.alert(r.error); return } setSel([]) }
   const [q, setQ] = useState(''); const [cat, setCat] = useState(''); const [sel, setSel] = useState<string[]>([]); const [bulk, setBulk] = useState('')
   const list = useMemo(() => products.filter(p => (!cat || p.category === cat) && (!q || p.name.toLowerCase().includes(q.toLowerCase()) || p.sku.toLowerCase().includes(q.toLowerCase()) || p.barcode.includes(q))), [products, q, cat])
   const toggle = (id: string) => setSel(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id])
@@ -28,6 +35,14 @@ export function Products() {
           <div className="relative flex-1 min-w-60"><Search size={16} className="absolute left-3 top-2.5 text-stone-400" /><input className={input + ' pl-9'} placeholder="Nombre, SKU o código de barras" value={q} onChange={e => setQ(e.target.value)} /></div>
           <select className={input + ' w-auto'} value={cat} onChange={e => setCat(e.target.value)}><option value="">Todas las categorías</option>{CATEGORIES.map(c => <option key={c.slug} value={c.slug}>{c.name}</option>)}</select>
           {sel.length > 0 && <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 text-sm"><Percent size={14} /> {sel.length} seleccionados · aumentar <input className="w-16 border rounded px-1" placeholder="%" value={bulk} onChange={e => setBulk(e.target.value)} /> % <button className={btnPrimary + ' py-1'} disabled={busy || !Number(bulk)} onClick={async () => { if (!window.confirm(`¿Cambiar ${Number(bulk) > 0 ? '+' : ''}${bulk}% el precio de ${sel.length} productos?`)) return; setBusy(true); const r = await bulkPriceUpdate(sel, Number(bulk)); setBusy(false); if (!r.ok) { window.alert(r.error); return } setSel([]); setBulk('') }}>Aplicar</button></div>}
+          {sel.length > 0 && <div className="w-full flex flex-wrap items-center gap-2 bg-stone-900 text-white rounded-lg px-3 py-2 text-sm">
+            <span className="font-medium">Oferta para {sel.length}:</span>
+            <span>−<input className="w-12 bg-white text-stone-900 rounded px-1 mx-1" value={offer} onChange={e => setOffer(e.target.value)} inputMode="numeric" aria-label="Porcentaje de descuento" />%</span>
+            <span>hasta <input type="datetime-local" className="bg-white text-stone-900 rounded px-1" value={offerEnd} onChange={e => setOfferEnd(e.target.value)} aria-label="Fin de la oferta" /></span>
+            <button className="bg-amber-400 text-black rounded-md px-3 py-1 font-semibold disabled:opacity-50" disabled={busy || !(Number(offer) > 0)} onClick={() => runOffer(Number(offer))}>Poner en oferta</button>
+            <button className="underline text-stone-300 hover:text-white" disabled={busy} onClick={() => runOffer(0)}>Quitar oferta</button>
+            <span className="text-xs text-stone-400 w-full">Vacío el &quot;hasta&quot; = sin fecha de fin. Al vencer, vuelve solo al precio normal.</span>
+          </div>}
         </div>
         <div className="overflow-auto">
           <table className="w-full text-sm">
@@ -38,7 +53,7 @@ export function Products() {
                 <td className="py-2"><Link href={`/admin/productos/${p.id}`} className="flex items-center gap-3"><img src={p.image} className="w-10 h-10 rounded object-cover" alt="" /><div><div>{p.name}{p.active === false && <span className="ml-2 text-[10px] bg-stone-200 text-stone-600 rounded-full px-1.5 py-0.5">oculto</span>}</div>{p.variants && <div className="text-xs text-stone-500">{p.variants.attr}: {p.variants.options.join(', ')}</div>}</div></Link></td>
                 <td className="py-2 text-xs">{categoryName(p.category)}</td>
                 <td className="py-2 font-mono text-xs">{p.sku}<div className="text-stone-400">{p.barcode}</div></td>
-                <td className="py-2 text-right text-stone-500">{moneyShort(p.cost)}</td><td className="py-2 text-right font-medium">{moneyShort(p.price)}</td>
+                <td className="py-2 text-right text-stone-500">{moneyShort(p.cost)}</td><td className="py-2 text-right font-medium">{offerActive(p) ? <><div>{moneyShort(p.offerPrice!)}</div><div className="text-[10px] text-stone-400 line-through">{moneyShort(p.price)}</div><div className="text-[10px] text-amber-700 font-semibold whitespace-nowrap">{offerPct(p)}% OFF{p.offerEndsAt ? ` · hasta ${new Date(p.offerEndsAt).toLocaleString('es-AR', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' })}` : ''}</div></> : moneyShort(p.price)}</td>
                 <td className="py-2 text-right"><span className={p.price - p.cost < p.cost * 0.5 ? 'text-amber-600' : 'text-emerald-700'}>{pct((p.price - p.cost) / p.price)}</span></td>
                 <td className="py-2 text-right"><span className={`px-2 py-0.5 rounded-full text-xs ${p.stock === 0 ? 'bg-red-100 text-red-700' : p.stock <= (p.minStock ?? settings.lowStockThreshold) ? 'bg-amber-100 text-amber-800' : 'bg-stone-100'}`}>{p.stock}</span></td>
                 <td className="py-2 text-right whitespace-nowrap"><Link href={`/admin/productos/${p.id}`} className="text-stone-400 hover:text-stone-900 inline-block mr-2"><Pencil size={15} /></Link><button className="text-stone-400 hover:text-red-600" aria-label="Eliminar" onClick={() => { if (window.confirm(`¿Eliminar "${p.name}"? Deja de verse en la tienda; las ventas viejas no se tocan.`)) deleteProduct(p.id) }}><Trash2 size={15} /></button></td>
@@ -92,6 +107,7 @@ export function ProductForm({ existing, initialBarcode }: { existing?: Product |
               <label className="text-sm">% ganancia de este producto<input className={input + ' mt-1'} type="number" value={p.markupPct ?? settings.defaultMarkup} onChange={e => set({ markupPct: Number(e.target.value), price: roundTo(p.cost * (1 + Number(e.target.value) / 100), settings.roundTo) })} /></label>
               <label className="text-sm">Precio de venta<input className={input + ' mt-1'} type="number" value={p.price} onChange={e => set({ price: Number(e.target.value) })} /></label>
               <label className="text-sm">Precio oferta (opcional)<input className={input + ' mt-1'} type="number" value={p.offerPrice ?? ''} onChange={e => set({ offerPrice: e.target.value ? Number(e.target.value) : null })} /></label>
+              {!!p.offerPrice && <label className="text-sm md:col-span-2">La oferta termina (vacío = sin fecha)<input className={input + ' mt-1'} type="datetime-local" value={p.offerEndsAt ? toLocalInput(new Date(p.offerEndsAt)) : ''} onChange={e => set({ offerEndsAt: e.target.value ? new Date(e.target.value).toISOString() : null })} /></label>}
             </div>
             <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
               <button className={btnGhost + ' text-xs'} onClick={() => set({ price: suggested })}><Wand2 size={14} /> Recalcular precio: {money(suggested)} (costo + {markup}%)</button>

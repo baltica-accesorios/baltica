@@ -7,7 +7,7 @@ import { CATEGORIES, INFO_PAGES, LOGO } from '@/data/categories'
 import { useCart } from '../cart'
 import { CartDrawer } from './CartDrawer'
 
-export interface StoreContact { whatsapp: string; email: string; instagram: string; mpEnabled: boolean }
+export interface StoreContact { whatsapp: string; email: string; instagram: string; mpEnabled: boolean; announcement: string }
 
 export function useMounted() {
   const [m, setM] = useState(false)
@@ -24,11 +24,16 @@ export function StoreLayout({ contact, children }: { contact: StoreContact; chil
   const [q, setQ] = useState('')
   const nav = useRouter()
   const pathname = usePathname()
-  useEffect(() => { setMenuOpen(false); setCartOpen(false) }, [pathname, setCartOpen])
+  useEffect(() => {
+    setMenuOpen(false); setCartOpen(false)
+    // Cierra el desplegable del menú después de elegir una categoría (queda abierto por el foco)
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+  }, [pathname, setCartOpen])
   const phone = contact.whatsapp.replace(/^549/, '')
 
   return (
     <div className="sf">
+      {contact.announcement && <div className="sf-announce">{contact.announcement}</div>}
       <header className="sf-header">
         <div className="container">
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>

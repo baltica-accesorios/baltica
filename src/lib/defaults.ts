@@ -7,9 +7,10 @@ export const DEFAULT_SETTINGS: Settings = {
   lowStockThreshold: 2,
   sellers: ['Sol', 'Nati'],
   aiInvoices: false,
-  transferDiscountPct: 10,
-  transferInfo: 'Alias: (completar en Configuración)',
-  cashOnPickup: true,
+  // Igual que en Empretienda hoy: transferencia sin descuento, efectivo deshabilitado
+  transferDiscountPct: 0,
+  transferInfo: 'Alias: baltica.sn\nBanco: Santander Rio\nA nombre de: Merlino Trinidad Victoria\n\nES OBLIGATORIO ENVIAR EL COMPROBANTE DE PAGO AL WHATSAPP 3364349507\n\n⚠️ El pago debe realizarse dentro de las 2 hs posteriores a la compra. De lo contrario, el pedido se cancela.',
+  cashOnPickup: false,
   shippingOptions: [
     { id: 'retiro', name: 'Retiro en showroom', price: 0, description: 'San Nicolás de los Arroyos. Te avisamos por WhatsApp cuando esté listo.' },
     { id: 'cadete', name: 'Cadete en San Nicolás', price: 2500, description: 'Entrega en el día dentro de San Nicolás.' },
@@ -18,6 +19,8 @@ export const DEFAULT_SETTINGS: Settings = {
   whatsapp: '5493364349507',
   email: 'baltica.sn@gmail.com',
   instagram: 'https://instagram.com/baltica.accesorios',
+  announcement: '',
+  gaId: 'G-Z43PVR3G90',
 }
 
 export const DEFAULT_TEMPLATES: LabelTemplate[] = [

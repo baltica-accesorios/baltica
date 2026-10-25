@@ -3,8 +3,29 @@
 Reemplazo de la tienda de Empretienda ([balticaaccesorios.com.ar](https://balticaaccesorios.com.ar)) por un
 sistema propio: la **misma tienda de cara al público**, con **cobro por Mercado Pago**, y un **panel de
 administración** con stock unificado online + mostrador, punto de venta con lector de códigos de barras,
-costos y ganancias, estadísticas, compras (con lectura de facturas por foto opcional), etiquetas y
-migración asistida desde Empretienda.
+costos y ganancias, estadísticas, compras (con lectura de facturas por foto opcional), etiquetas
+diseñables y migración asistida desde Empretienda.
+
+## Qué hace
+
+**Tienda (lo que ve el cliente)**
+- Misma plantilla, menú, categorías y URLs que la tienda de Empretienda (no se pierde posicionamiento en Google).
+- Ofertas con cartel **"20% OFF"**, precio tachado y **fecha de fin**: al vencer, vuelve sola al precio normal.
+- Franja de aviso arriba de todo ("¡Sólo por hoy domingo! -20%…"), editable desde el panel.
+- Botón **Comprar** en cada producto, carrito lateral, checkout con envíos configurables.
+- Pagos: **transferencia** (con los datos e instrucciones de siempre), **Mercado Pago** y efectivo al retirar (los dos últimos se activan cuando quieran).
+- Botón de WhatsApp, botón de arrepentimiento, Google Analytics con el mismo ID que Empretienda.
+
+**Panel (`/admin`)**
+- **Vender en mostrador** con lector de códigos, cámara del celular o búsqueda. Mismo stock que la tienda.
+- **Ventas** online y de mostrador juntas, con estados y aviso de pedidos "a resolver".
+- **Productos** con costo, margen y código de barras; aumento masivo de precios y **ofertas masivas con fecha de fin**.
+- **Stock** con alertas, cobertura en días, movimientos trazables y conteo físico.
+- **Compras y facturas**: carga manual, repetir una compra, o lectura por foto con Claude (opcional).
+- **Etiquetas**: editor visual para diseñar cada plantilla a gusto (tamaño, qué lleva, orden, tamaños de letra, alto de barras), con vista previa en tamaño real y aviso si algo no entra.
+- **Estadísticas**, **migración desde Empretienda**, **configuración** (pagos, envíos, aviso, usuarios, copia de seguridad).
+
+## Documentación
 
 - **Poner la tienda en internet:** [`docs/PUESTA-EN-MARCHA.md`](docs/PUESTA-EN-MARCHA.md) (paso a paso, sin conocimientos técnicos)
 - Arquitectura, concurrencia de stock y decisiones: [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md)
@@ -65,6 +86,26 @@ src/
 drizzle/                 Migraciones SQL
 scripts/seed.ts          Carga inicial (productos actuales) y datos de demo
 ```
+
+## Paridad con la tienda de Empretienda
+
+Comparado contra balticaaccesorios.com.ar el 25/10/2026.
+
+| Función de Empretienda | Estado |
+|---|---|
+| Plantilla, menú, categorías, URLs, banners, grilla del inicio, sección "Ingresos" | ✅ |
+| Ofertas con % OFF, precio tachado y fecha de fin | ✅ |
+| Franja de aviso superior | ✅ |
+| Botón "Comprar" en el listado | ✅ |
+| Transferencia con datos e instrucciones (sin descuento, como hoy) | ✅ |
+| Filtro por atributo y orden por precio/fecha | ✅ |
+| WhatsApp, redes, botón de arrepentimiento, páginas de información | ✅ (arrepentimiento por WhatsApp/email, sin formulario) |
+| Google Analytics | ✅ mismo ID |
+| **Stock por variante** (cada talle con su propio stock) | ⏳ hoy el stock es por producto |
+| **Cupones de descuento** | ⏳ pendiente |
+| **Cuentas de clientes y mayoristas** (registro, precios mayoristas) | ⏳ pendiente |
+| **Cálculo de envío por código postal** (cotización de Correo Argentino) | ⏳ hoy son tarifas fijas configurables |
+| Formularios de contacto y arrepentimiento con envío de email | ⏳ pendiente (necesita un servicio de email) |
 
 ## Reglas de stock (resumen)
 

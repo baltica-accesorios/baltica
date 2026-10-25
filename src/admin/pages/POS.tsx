@@ -4,6 +4,7 @@ import { Camera, Search, Trash2, Check, Banknote, Landmark, CreditCard, QrCode, 
 import { useAdmin } from '../context'
 import { registerLocalSale } from '../actions'
 import { findProduct, byCode } from '@/lib/search'
+import { currentPrice } from '@/lib/pricing'
 import { useKeyboardWedge, CameraScanner } from '../components/Scanner'
 import { PageHeader, Card, Hint, btnPrimary, btnGhost, input } from '../components/AdminLayout'
 import { money, moneyShort } from '@/lib/format'
@@ -40,7 +41,7 @@ export function POS() {
     if (inCart + 1 > p.stock) { setFlash({ ok: false, msg: `Sin stock de "${p.name}" (quedan ${p.stock})` }); return }
     setFlash({ ok: true, msg: `+1 ${p.name}` })
     if (i >= 0) { const c = [...ls]; c[i] = { ...c[i], qty: c[i].qty + 1 }; setLines(c) }
-    else setLines([...ls, { productId: p.id, name: p.name, qty: 1, unitPrice: p.offerPrice ?? p.price, unitCost: p.cost, variant, image: p.image, stock: p.stock }])
+    else setLines([...ls, { productId: p.id, name: p.name, qty: 1, unitPrice: currentPrice(p), unitCost: p.cost, variant, image: p.image, stock: p.stock }])
     setQ('')
   }, [products])
 
@@ -105,7 +106,7 @@ export function POS() {
                 {results.map(p => (
                   <li key={p.id} className="py-2 flex items-center gap-3 hover:bg-stone-50 cursor-pointer rounded px-1" onClick={() => addProduct(p.id, p.variants?.options[0])}>
                     <img src={p.image} className="w-10 h-10 rounded object-cover" alt="" /><div className="flex-1 min-w-0"><div className="text-sm truncate">{p.name}</div><div className="text-xs text-stone-500 font-mono">{p.sku} · {p.barcode}</div></div>
-                    <div className="text-right"><div className="font-semibold text-sm">{moneyShort(p.offerPrice ?? p.price)}</div><div className={`text-xs ${p.stock <= 0 ? 'text-red-600' : 'text-stone-500'}`}>stock {p.stock}</div></div>
+                    <div className="text-right"><div className="font-semibold text-sm">{moneyShort(currentPrice(p))}</div><div className={`text-xs ${p.stock <= 0 ? 'text-red-600' : 'text-stone-500'}`}>stock {p.stock}</div></div>
                   </li>
                 ))}
                 {results.length === 0 && <li className="py-3 text-sm text-stone-500">Nada con "{q}".</li>}

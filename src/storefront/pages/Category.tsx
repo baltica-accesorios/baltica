@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { categoryName, subcategoryName } from '@/data/categories'
 import type { PublicProduct } from '@/lib/types'
 import { ProductCard } from '../components/ProductCard'
+import { currentPrice } from '@/lib/pricing'
 
 export function Category({ products, cat, sub, search, all }: { products: PublicProduct[]; cat?: string; sub?: string; search?: string; all?: boolean }) {
   const [sort, setSort] = useState('new')
@@ -14,8 +15,8 @@ export function Category({ products, cat, sub, search, all }: { products: Public
     if (opt) l = l.filter(p => p.variants?.options.includes(opt))
     if (sort === 'new') l = [...l].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     if (sort === 'old') l = [...l].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-    if (sort === 'asc') l = [...l].sort((a, b) => (a.offerPrice ?? a.price) - (b.offerPrice ?? b.price))
-    if (sort === 'desc') l = [...l].sort((a, b) => (b.offerPrice ?? b.price) - (a.offerPrice ?? a.price))
+    if (sort === 'asc') l = [...l].sort((a, b) => currentPrice(a) - currentPrice(b))
+    if (sort === 'desc') l = [...l].sort((a, b) => currentPrice(b) - currentPrice(a))
     return l
   }, [products, sort, opt])
 

@@ -22,6 +22,13 @@
       "when": 1792940784517,
       "tag": "0002_numeracion_ventas",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792943467563,
+      "tag": "0003_ofertas_y_etiquetas",
+      "breakpoints": true
     }
   ]
 }
