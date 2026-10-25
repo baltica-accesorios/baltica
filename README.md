@@ -34,6 +34,7 @@ diseñables y migración asistida desde Empretienda.
 - **Poner la tienda en internet:** [`docs/PUESTA-EN-MARCHA.md`](docs/PUESTA-EN-MARCHA.md) (paso a paso, sin conocimientos técnicos)
 - Arquitectura, concurrencia de stock y decisiones: [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md)
 - Qué mirar del sistema: [`docs/DEMO.md`](docs/DEMO.md)
+- **Informe técnico y plan de puesta en marcha (PDF):** [`docs/Baltica-informe-tecnico.pdf`](docs/Baltica-informe-tecnico.pdf)
 
 ## Stack
 
