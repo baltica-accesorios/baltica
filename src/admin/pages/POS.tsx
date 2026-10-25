@@ -33,21 +33,25 @@ export function POS() {
   const inputRef = useRef<HTMLInputElement>(null)
 
   const linesRef = useRef<Line[]>([]); linesRef.current = lines
-  const addProduct = useCallback((id: string, variant?: string) => {
+  const addProduct = useCallback((id: string, wanted?: string) => {
     const p = products.find(p => p.id === id); if (!p) return
+    const vs = p.variantStock && Object.keys(p.variantStock).length ? p.variantStock : null
+    // Con stock por talle: el talle pedido o el primero que tenga stock
+    const variant = vs ? (wanted && wanted in vs ? wanted : Object.keys(vs).find(o => vs[o] > 0) ?? Object.keys(vs)[0]) : wanted
+    const avail = vs ? vs[variant!] ?? 0 : p.stock
     const ls = linesRef.current
     const i = ls.findIndex(l => l.productId === id && l.variant === variant)
     const inCart = i >= 0 ? ls[i].qty : 0
-    if (inCart + 1 > p.stock) { setFlash({ ok: false, msg: `Sin stock de "${p.name}" (quedan ${p.stock})` }); return }
-    setFlash({ ok: true, msg: `+1 ${p.name}` })
+    if (inCart + 1 > avail) { setFlash({ ok: false, msg: `Sin stock de "${p.name}"${vs ? ` (${variant})` : ''} (quedan ${avail})` }); return }
+    setFlash({ ok: true, msg: `+1 ${p.name}${vs ? ` (${variant})` : ''}` })
     if (i >= 0) { const c = [...ls]; c[i] = { ...c[i], qty: c[i].qty + 1 }; setLines(c) }
-    else setLines([...ls, { productId: p.id, name: p.name, qty: 1, unitPrice: currentPrice(p), unitCost: p.cost, variant, image: p.image, stock: p.stock }])
+    else setLines([...ls, { productId: p.id, name: p.name, qty: 1, unitPrice: currentPrice(p), unitCost: p.cost, variant, image: p.image, stock: avail }])
     setQ('')
   }, [products])
 
   const onScan = useCallback((code: string) => {
     const p = byCode(products, code)
-    if (p) addProduct(p.id, p.variants?.options[0])
+    if (p) addProduct(p.id)
     else setFlash({ ok: false, msg: `Código ${code} no encontrado. Podés crearlo desde Productos.` })
   }, [products, addProduct])
   useKeyboardWedge(onScan, !done)
@@ -98,13 +102,13 @@ export function POS() {
           <Card>
             <div className="relative">
               <Search size={18} className="absolute left-3 top-3.5 text-stone-400" />
-              <input ref={inputRef} className={input + ' pl-10 pr-14 py-3 text-base'} placeholder="Escaneá con el lector o la cámara, o escribí el nombre..." value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && results[0]) addProduct(results[0].id, results[0].variants?.options[0]) }} />
+              <input ref={inputRef} className={input + ' pl-10 pr-14 py-3 text-base'} placeholder="Escaneá con el lector o la cámara, o escribí el nombre..." value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && results[0]) addProduct(results[0].id) }} />
               <button type="button" onClick={() => setCam(true)} title="Escanear con la cámara" aria-label="Escanear con la cámara" className="absolute right-2 top-1.5 h-9 w-10 rounded-lg bg-stone-900 text-white flex items-center justify-center hover:bg-stone-700"><Camera size={18} /></button>
             </div>
             {q && (
               <ul className="mt-2 divide-y max-h-80 overflow-auto">
                 {results.map(p => (
-                  <li key={p.id} className="py-2 flex items-center gap-3 hover:bg-stone-50 cursor-pointer rounded px-1" onClick={() => addProduct(p.id, p.variants?.options[0])}>
+                  <li key={p.id} className="py-2 flex items-center gap-3 hover:bg-stone-50 cursor-pointer rounded px-1" onClick={() => addProduct(p.id)}>
                     <img src={p.image} className="w-10 h-10 rounded object-cover" alt="" /><div className="flex-1 min-w-0"><div className="text-sm truncate">{p.name}</div><div className="text-xs text-stone-500 font-mono">{p.sku} · {p.barcode}</div></div>
                     <div className="text-right"><div className="font-semibold text-sm">{moneyShort(currentPrice(p))}</div><div className={`text-xs ${p.stock <= 0 ? 'text-red-600' : 'text-stone-500'}`}>stock {p.stock}</div></div>
                   </li>
@@ -112,7 +116,7 @@ export function POS() {
                 {results.length === 0 && <li className="py-3 text-sm text-stone-500">Nada con "{q}".</li>}
               </ul>
             )}
-            {!q && <div className="mt-3 flex flex-wrap gap-2 text-xs text-stone-500"><span>Accesos rápidos:</span>{products.slice(0, 6).map(p => <button key={p.id} onClick={() => addProduct(p.id, p.variants?.options[0])} className="px-2 py-1 bg-stone-100 rounded hover:bg-stone-200">{p.name.split(' (')[0]}</button>)}</div>}
+            {!q && <div className="mt-3 flex flex-wrap gap-2 text-xs text-stone-500"><span>Accesos rápidos:</span>{products.slice(0, 6).map(p => <button key={p.id} onClick={() => addProduct(p.id)} className="px-2 py-1 bg-stone-100 rounded hover:bg-stone-200">{p.name.split(' (')[0]}</button>)}</div>}
           </Card>
           <Card>
             {lines.length === 0 ? <div className="text-center py-10 text-stone-400"><ShoppingBag size={40} className="mx-auto mb-2 text-stone-300" />Todavía no agregaste productos.<div className="text-xs mt-1">Probá escanear o escribir "anillo".</div></div> : (
@@ -120,7 +124,7 @@ export function POS() {
                 <thead className="text-xs text-stone-500 uppercase"><tr><th className="text-left pb-2">Producto</th><th className="pb-2">Cant.</th><th className="text-right pb-2">Precio</th><th className="text-right pb-2">Total</th><th /></tr></thead>
                 <tbody className="divide-y">{lines.map((l, i) => (
                   <tr key={i}>
-                    <td className="py-2"><div className="flex items-center gap-3"><img src={l.image} className="w-10 h-10 rounded object-cover" alt="" /><div><div>{l.name}</div>{l.variant && <select className="text-xs text-stone-500 bg-transparent" value={l.variant} onChange={e => setLines(ls => ls.map((x, k) => k === i ? { ...x, variant: e.target.value } : x))}>{products.find(p => p.id === l.productId)?.variants?.options.map(o => <option key={o}>{o}</option>)}</select>}</div></div></td>
+                    <td className="py-2"><div className="flex items-center gap-3"><img src={l.image} className="w-10 h-10 rounded object-cover" alt="" /><div><div>{l.name}</div>{l.variant && (() => { const vp = products.find(p => p.id === l.productId); const vs = vp?.variantStock; return <select className="text-xs text-stone-600 bg-stone-50 border rounded px-1 mt-0.5" value={l.variant} aria-label="Talle" onChange={e => { const v = e.target.value; const st = vs ? vs[v] ?? 0 : vp?.stock ?? 0; setLines(ls => ls.map((x, k) => k === i ? { ...x, variant: v, stock: st, qty: Math.max(1, Math.min(x.qty, st)) } : x)) }}>{vp?.variants?.options.map(o => <option key={o} value={o} disabled={!!vs && (vs[o] ?? 0) <= 0}>{o}{vs ? ` (${vs[o] ?? 0})` : ''}</option>)}</select> })()}</div></div></td>
                     <td className="py-2 text-center"><div className="inline-flex items-center border rounded-lg"><button className="px-2 py-1" onClick={() => setLines(ls => ls.map((x, k) => k === i ? { ...x, qty: x.qty - 1 } : x).filter(x => x.qty > 0))}>−</button><span className="px-2 font-medium">{l.qty}</span><button className="px-2 py-1" disabled={l.qty >= l.stock} onClick={() => setLines(ls => ls.map((x, k) => k === i ? { ...x, qty: Math.min(x.stock, x.qty + 1) } : x))}>+</button></div></td>
                     <td className="py-2 text-right"><input className="w-24 text-right border rounded px-2 py-1" value={l.unitPrice} onChange={e => setLines(ls => ls.map((x, k) => k === i ? { ...x, unitPrice: Number(e.target.value) || 0 } : x))} /></td>
                     <td className="py-2 text-right font-medium">{moneyShort(l.qty * l.unitPrice)}</td>

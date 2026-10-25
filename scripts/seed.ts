@@ -10,6 +10,9 @@ import { buildProducts, buildHistory, buildPurchases } from './demo-history'
 
 const demo = process.argv.includes('--demo')
 
+// Reparte el stock entre los talles (el export real de Empretienda trae el stock de cada uno)
+const splitStock = (stock: number, options: string[]) => options.length ? Object.fromEntries(options.map((o, i) => [o, Math.floor(stock / options.length) + (i < stock % options.length ? 1 : 0)])) : null
+
 async function main() {
   await db.insert(schema.settings).values({ id: 'main', value: DEFAULT_SETTINGS }).onConflictDoNothing()
   await db.insert(schema.labelTemplates).values(DEFAULT_TEMPLATES).onConflictDoNothing()
@@ -19,7 +22,7 @@ async function main() {
     id: p.id, slug: p.slug, name: p.name, category: p.category, subcategory: p.subcategory, material: p.material,
     price: Math.round(p.price), offerPrice: p.offerPrice ?? null, cost: p.cost, stock: p.stock, minStock: p.minStock ?? null,
     markupPct: p.markupPct ?? null, sku: p.sku, barcode: p.barcode, image: p.image, images: p.images ?? [p.image],
-    description: p.description ?? null, variants: p.variants ?? null, createdAt: new Date(p.createdAt),
+    description: p.description ?? null, variants: p.variants ?? null, variantStock: splitStock(p.stock, p.variants?.options ?? []), createdAt: new Date(p.createdAt),
   }))).onConflictDoNothing().returning({ id: schema.products.id, stock: schema.products.stock })
   if (inserted.length) await db.insert(schema.stockMovements).values(inserted.map(p => ({ productId: p.id, delta: p.stock, reason: 'migracion', by: 'Importación Empretienda' })))
   console.log(`Productos nuevos: ${inserted.length} (de ${products.length})`)

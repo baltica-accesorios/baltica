@@ -13,16 +13,16 @@ export function toProduct(r: ProductRow): Product {
     id: r.id, slug: r.slug, name: r.name, category: r.category, subcategory: r.subcategory, material: r.material,
     price: r.price, offerPrice: r.offerPrice, offerEndsAt: r.offerEndsAt?.toISOString() ?? null, wholesalePrice: r.wholesalePrice, cost: r.cost, stock: r.stock,
     minStock: r.minStock, markupPct: r.markupPct, sku: r.sku, barcode: r.barcode, image: r.image,
-    images: r.images.length ? r.images : [r.image], description: r.description, variants: r.variants,
+    images: r.images.length ? r.images : [r.image], description: r.description, variants: r.variants, variantStock: r.variantStock,
     createdAt: r.createdAt.toISOString(), active: r.active,
   }
 }
 
 export function toPublic(p: Product): PublicProduct {
-  const { id, slug, name, category, subcategory, price, stock, image, images, description, variants, createdAt } = p
+  const { id, slug, name, category, subcategory, price, stock, image, images, description, variants, variantStock, createdAt } = p
   // Las ofertas vencidas no llegan a la tienda
   const on = offerActive(p)
-  return { id, slug, name, category, subcategory, price, offerPrice: on ? p.offerPrice : null, offerEndsAt: on ? p.offerEndsAt : null, stock, image, images, description, variants, createdAt }
+  return { id, slug, name, category, subcategory, price, offerPrice: on ? p.offerPrice : null, offerEndsAt: on ? p.offerEndsAt : null, stock, image, images, description, variants, variantStock, createdAt }
 }
 
 export const saleId = (n: number) => 's' + n
@@ -105,7 +105,7 @@ export async function getSale(number: number): Promise<Sale | null> {
 
 export async function recentMovements(limit = 200): Promise<StockMovement[]> {
   const rows = await db.select().from(schema.stockMovements).orderBy(desc(schema.stockMovements.id)).limit(limit)
-  return rows.reverse().map(m => ({ id: String(m.id), productId: m.productId, delta: m.delta, reason: m.reason as MovementReason, ref: m.ref, createdAt: m.createdAt.toISOString(), by: m.by }))
+  return rows.reverse().map(m => ({ id: String(m.id), productId: m.productId, delta: m.delta, reason: m.reason as MovementReason, variant: m.variant, ref: m.ref, createdAt: m.createdAt.toISOString(), by: m.by }))
 }
 
 export async function listPurchases(): Promise<Purchase[]> {

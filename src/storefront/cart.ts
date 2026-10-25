@@ -17,6 +17,9 @@ interface Cart {
   clear: () => void
 }
 
+/** Stock disponible del talle elegido (o del producto si no tiene stock por talle) */
+export const variantStockOf = (p: Pick<PublicProduct, 'stock' | 'variantStock'>, variant?: string) => p.variantStock && variant ? p.variantStock[variant] ?? 0 : p.stock
+
 export const unitPrice = (p: Pick<PublicProduct, 'price' | 'offerPrice' | 'offerEndsAt'>) => currentPrice(p)
 
 export const useCart = create<Cart>()(persist((set) => ({
@@ -25,7 +28,7 @@ export const useCart = create<Cart>()(persist((set) => ({
   setOpen: open => set({ open }),
   add: (p, qty, variant) => set(s => {
     const i = s.lines.findIndex(l => l.productId === p.id && l.variant === variant)
-    const snap = { name: p.name, price: unitPrice(p), image: p.image, stock: p.stock, attr: p.variants?.attr }
+    const snap = { name: p.name, price: unitPrice(p), image: p.image, stock: variantStockOf(p, variant), attr: p.variants?.attr }
     if (i >= 0) { const lines = [...s.lines]; lines[i] = { ...lines[i], ...snap, qty: Math.min(p.stock, lines[i].qty + qty) }; return { lines, open: true } }
     return { lines: [...s.lines, { productId: p.id, qty: Math.min(p.stock, qty), variant, ...snap }], open: true }
   }),

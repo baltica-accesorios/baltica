@@ -7,7 +7,7 @@ import { useAdmin } from '../context'
 import { confirmPurchase, readInvoicePhoto } from '../actions'
 import { PageHeader, Card, Hint, btnGhost, btnPrimary, input } from '../components/AdminLayout'
 import { money, moneyShort, dateAR, roundTo } from '@/lib/format'
-import type { Purchase, PurchaseLine } from '@/lib/types'
+import type { Product, Purchase, PurchaseLine } from '@/lib/types'
 
 export function Purchases({ purchases }: { purchases: Purchase[] }) {
   const { settings, hasAnthropicKey } = useAdmin()
@@ -87,7 +87,7 @@ export function NewPurchase({ purchases }: { purchases: Purchase[] }) {
       const p = l.productId ? products.find(p => p.id === l.productId) : match(l.description)?.p
       const pct = p?.markupPct ?? settings.defaultMarkup
       const unitCost = Math.round(l.unitCost)
-      return { description: l.description, qty: Math.round(l.qty), unitCost, productId: p?.id, matched: !!p, markupPct: pct, suggestedPrice: price(unitCost, pct), barcode: p?.barcode }
+      return { description: l.description, qty: Math.round(l.qty), unitCost, productId: p?.id, variant: firstVariant(p), matched: !!p, markupPct: pct, suggestedPrice: price(unitCost, pct), barcode: p?.barcode }
     }))
     setProgress(100); setStep(2)
   }
@@ -95,12 +95,14 @@ export function NewPurchase({ purchases }: { purchases: Purchase[] }) {
   const reuse = (id: string) => {
     const pu = purchases.find(p => p.id === id); if (!pu) return
     setSupplier(pu.supplier); setInvoice(''); setSource('repetida')
-    setLines(pu.lines.map(l => { const p = products.find(p => p.id === l.productId); const pct = p?.markupPct ?? l.markupPct ?? settings.defaultMarkup; return { ...l, markupPct: pct, suggestedPrice: price(l.unitCost, pct), matched: !!p } }))
+    setLines(pu.lines.map(l => { const p = products.find(p => p.id === l.productId); const pct = p?.markupPct ?? l.markupPct ?? settings.defaultMarkup; return { ...l, variant: l.variant && p?.variantStock && l.variant in p.variantStock ? l.variant : firstVariant(p), markupPct: pct, suggestedPrice: price(l.unitCost, pct), matched: !!p } }))
     setStep(2)
   }
   useEffect(() => { const d = sp.get('desde'); if (d) reuse(d) }, [])  // eslint-disable-line react-hooks/exhaustive-deps
+  const firstVariant = (p?: Product) => p?.variantStock ? Object.keys(p.variantStock)[0] : undefined
+  const variantSelect = (l: PurchaseLine, i: number, cls: string) => { const p = products.find(p => p.id === l.productId); return p?.variantStock ? <select className={cls} value={l.variant ?? ''} onChange={e => upd(i, { variant: e.target.value })} aria-label="Talle">{Object.keys(p.variantStock).map(o => <option key={o} value={o}>{p.variants?.attr ? `${o}` : o}</option>)}</select> : null }
   const upd = (i: number, patch: Partial<PurchaseLine>) => setLines(ls => ls.map((x, k) => k === i ? { ...x, ...patch } : x))
-  const pickProduct = (i: number, id: string) => { const p = products.find(p => p.id === id); const pct = p?.markupPct ?? settings.defaultMarkup; setLines(ls => ls.map((x, k) => k === i ? { ...x, productId: p?.id, matched: !!p, barcode: p?.barcode, markupPct: pct, suggestedPrice: price(x.unitCost, pct) } : x)) }
+  const pickProduct = (i: number, id: string) => { const p = products.find(p => p.id === id); const pct = p?.markupPct ?? settings.defaultMarkup; setLines(ls => ls.map((x, k) => k === i ? { ...x, productId: p?.id, variant: firstVariant(p), matched: !!p, barcode: p?.barcode, markupPct: pct, suggestedPrice: price(x.unitCost, pct) } : x)) }
   const setCost = (i: number, v: number) => setLines(ls => ls.map((x, k) => k === i ? { ...x, unitCost: v, suggestedPrice: price(v, x.markupPct) } : x))
   const setPct = (i: number, v: number) => setLines(ls => ls.map((x, k) => k === i ? { ...x, markupPct: v, suggestedPrice: price(x.unitCost, v) } : x))
   const removeLine = (i: number) => setLines(ls => ls.filter((_, k) => k !== i))
@@ -160,6 +162,7 @@ export function NewPurchase({ purchases }: { purchases: Purchase[] }) {
             <li key={i} className={`rounded-lg border p-3 space-y-2 ${l.matched ? 'bg-white' : 'bg-stone-50 border-amber-300'}`}>
               <div className="flex items-start gap-2"><input className="flex-1 min-w-0 font-mono text-xs bg-transparent border-b border-dashed py-1" value={l.description} onChange={e => upd(i, { description: e.target.value })} placeholder="Descripción en la factura" aria-label="Descripción" /><button className="text-stone-400 hover:text-red-600 px-1" aria-label="Quitar renglón" onClick={() => removeLine(i)}>✕</button></div>
               <select className={input + ' text-sm'} value={l.productId ?? ''} onChange={e => pickProduct(i, e.target.value)} aria-label="Producto"><option value="">— elegir producto —</option>{products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
+              {variantSelect(l, i, input + ' text-sm')}
               <div className="grid grid-cols-3 gap-2">
                 <label className="text-[11px] text-stone-500">Cantidad<input className={input + ' mt-0.5 text-right'} inputMode="numeric" value={l.qty} onChange={e => upd(i, { qty: Number(e.target.value) })} /></label>
                 <label className="text-[11px] text-stone-500">Costo unit.<input className={input + ' mt-0.5 text-right'} inputMode="numeric" value={l.unitCost} onChange={e => setCost(i, Number(e.target.value))} /></label>
@@ -172,7 +175,7 @@ export function NewPurchase({ purchases }: { purchases: Purchase[] }) {
             <tbody className="divide-y">{lines.map((l, i) => { const p = products.find(p => p.id === l.productId); const up = p && l.unitCost > p.cost; return (
               <tr key={i} className={l.matched ? '' : 'bg-stone-50'}>
                 <td className="py-2 font-mono text-xs"><input className="bg-transparent w-full" value={l.description} onChange={e => upd(i, { description: e.target.value })} /></td>
-                <td className="py-2"><select className={input + ' py-1 text-xs'} value={l.productId ?? ''} onChange={e => pickProduct(i, e.target.value)}><option value="">— elegir / crear nuevo —</option>{products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></td>
+                <td className="py-2"><select className={input + ' py-1 text-xs'} value={l.productId ?? ''} onChange={e => pickProduct(i, e.target.value)}><option value="">— elegir / crear nuevo —</option>{products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>{variantSelect(l, i, input + ' py-1 text-xs mt-1')}</td>
                 <td className="py-2 text-right"><input className="w-14 text-right border rounded px-1" value={l.qty} onChange={e => upd(i, { qty: Number(e.target.value) })} /></td>
                 <td className="py-2 text-right"><input className="w-20 text-right border rounded px-1" value={l.unitCost} onChange={e => setCost(i, Number(e.target.value))} /></td>
                 <td className="py-2 text-right text-stone-500">{p ? moneyShort(p.cost) : '—'}{up && <span className="text-amber-600 text-xs ml-1">▲</span>}</td>

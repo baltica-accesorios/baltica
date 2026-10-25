@@ -42,8 +42,12 @@ export async function checkout(raw: z.input<typeof Input>): Promise<CheckoutResu
   for (const l of lines) {
     const p = byId.get(l.productId)
     if (!p) return { ok: false, error: 'Un producto de tu carrito ya no está disponible. Sacalo y probá de nuevo.' }
-    const wanted = lines.filter(x => x.productId === l.productId).reduce((a, x) => a + x.qty, 0)
-    if (p.stock < wanted) return { ok: false, error: p.stock ? `De "${p.name}" quedan sólo ${p.stock}.` : `"${p.name}" se quedó sin stock.` }
+    const hasVariants = !!(p.variantStock && Object.keys(p.variantStock).length)
+    if (hasVariants && !(l.variant && l.variant in p.variantStock!)) return { ok: false, error: `Elegí el talle de "${p.name}" de nuevo (sacalo del carrito y volvé a agregarlo).` }
+    const avail = hasVariants ? p.variantStock![l.variant!] ?? 0 : p.stock
+    const wanted = lines.filter(x => x.productId === l.productId && (!hasVariants || x.variant === l.variant)).reduce((a, x) => a + x.qty, 0)
+    const label = `"${p.name}"${hasVariants ? ` (${l.variant})` : ''}`
+    if (avail < wanted) return { ok: false, error: avail ? `De ${label} quedan sólo ${avail}.` : `${label} se quedó sin stock.` }
   }
   const items = lines.map(l => { const p = byId.get(l.productId)!; return { productId: p.id, qty: l.qty, unitPrice: currentPrice(p), variant: l.variant ?? null, name: p.name, image: p.image } })
   const subtotal = items.reduce((a, i) => a + i.qty * i.unitPrice, 0)

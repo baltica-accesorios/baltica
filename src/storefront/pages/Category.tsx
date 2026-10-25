@@ -12,7 +12,8 @@ export function Category({ products, cat, sub, search, all }: { products: Public
 
   const list = useMemo(() => {
     let l = products
-    if (opt) l = l.filter(p => p.variants?.options.includes(opt))
+    // Filtrar por talle muestra sólo lo que tiene stock en ese talle
+    if (opt) l = l.filter(p => p.variants?.options.includes(opt) && (p.variantStock ? (p.variantStock[opt] ?? 0) > 0 : p.stock > 0))
     if (sort === 'new') l = [...l].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     if (sort === 'old') l = [...l].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
     if (sort === 'asc') l = [...l].sort((a, b) => currentPrice(a) - currentPrice(b))

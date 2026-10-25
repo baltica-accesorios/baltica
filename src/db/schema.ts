@@ -29,6 +29,8 @@ export const products = pgTable('products', {
   images: jsonb('images').$type<string[]>().notNull().default([]),
   description: text('description'),
   variants: jsonb('variants').$type<Variant | null>(),
+  // Stock de cada opción de la variante ({"1.6cm": 2, "1.7cm": 0}). `stock` es siempre la suma.
+  variantStock: jsonb('variant_stock').$type<Record<string, number> | null>(),
   active: boolean('active').notNull().default(true),
   // Borrado lógico: las ventas viejas siguen apuntando al producto
   deleted: boolean('deleted').notNull().default(false),
@@ -78,6 +80,7 @@ export const stockMovements = pgTable('stock_movements', {
   productId: text('product_id').notNull(),
   delta: integer('delta').notNull(),
   reason: text('reason').notNull(),
+  variant: text('variant'),
   ref: text('ref'),
   by: text('by').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

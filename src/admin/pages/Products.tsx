@@ -95,6 +95,7 @@ export function ProductForm({ existing, initialBarcode }: { existing?: Product |
   const [err, setErr] = useState('')
   const [p, setP] = useState<Product>(existing ?? { id: 'p' + uid(), slug: '', name: '', category: 'anillos', subcategory: null, material: 'acero quirúrgico', price: 0, cost: 0, stock: 0, minStock: 2, sku: '', barcode: initialBarcode, image: '', images: [], variants: null, createdAt: new Date().toISOString(), active: true })
   const set = (patch: Partial<Product>) => setP(x => ({ ...x, ...patch }))
+  const opts = p.variants?.attr ? p.variants.options : []
   const markup = p.markupPct ?? settings.defaultMarkup
   const suggested = roundTo(p.cost * (1 + markup / 100), settings.roundTo)
   const margin = p.price ? (p.price - p.cost) / p.price : 0
@@ -138,11 +139,19 @@ export function ProductForm({ existing, initialBarcode }: { existing?: Product |
           </Card>
           <Card title="Stock e identificación">
             <div className="grid md:grid-cols-4 gap-3">
-              <label className="text-sm">Stock actual<input className={input + ' mt-1'} type="number" value={p.stock} onChange={e => set({ stock: Number(e.target.value) })} /></label>
+              {opts.length ? <div className="text-sm">Stock total<div className={input + ' mt-1 bg-stone-50 text-stone-500'}>{opts.reduce((a, o) => a + (p.variantStock?.[o] ?? 0), 0)}</div></div>
+                : <label className="text-sm">Stock actual<input className={input + ' mt-1'} type="number" value={p.stock} onChange={e => set({ stock: Number(e.target.value) })} /></label>}
               <label className="text-sm">Stock mínimo (alerta)<input className={input + ' mt-1'} type="number" value={p.minStock ?? 0} onChange={e => set({ minStock: Number(e.target.value) })} /></label>
               <label className="text-sm">SKU<input className={input + ' mt-1'} value={p.sku} onChange={e => set({ sku: e.target.value })} placeholder="auto" /></label>
               <label className="text-sm">Código de barras<div className="flex gap-1 mt-1"><input className={input + ' font-mono'} value={p.barcode} onChange={e => set({ barcode: e.target.value })} /><button className={btnGhost + ' px-2'} title="Generar EAN-13 nuevo" onClick={async () => set({ barcode: await newBarcode() })}><Sparkles size={14} /></button></div></label>
             </div>
+            {opts.length > 0 && <div className="mt-3">
+              <div className="text-sm font-medium mb-1">Stock por {p.variants?.attr?.toLowerCase() || 'opción'}</div>
+              <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">{opts.map(o => (
+                <label key={o} className="text-xs text-stone-600">{o}<input className={input + ' mt-0.5 text-center'} type="number" min={0} value={p.variantStock?.[o] ?? 0} onChange={e => set({ variantStock: { ...Object.fromEntries(opts.map(k => [k, p.variantStock?.[k] ?? 0])), [o]: Math.max(0, Number(e.target.value) || 0) } })} /></label>
+              ))}</div>
+              <p className="text-xs text-stone-500 mt-1">Cada talle tiene su propio stock: la tienda no deja comprar un talle agotado aunque haya de otros.</p>
+            </div>}
             <Hint>Si el producto ya trae código de barras del proveedor, escanealo acá y se usa ese. Si no, el sistema genera uno propio (prefijo 779 = Argentina) y lo imprimís desde Etiquetas.</Hint>
           </Card>
           {err && <p className="text-sm text-red-600">{err}</p>}

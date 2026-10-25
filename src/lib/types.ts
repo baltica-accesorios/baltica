@@ -23,12 +23,13 @@ export interface Product {
   images?: string[]
   description?: string | null
   variants?: Variant | null
+  variantStock?: Record<string, number> | null  // stock por talle/opción; `stock` es la suma
   createdAt: string
   active?: boolean
 }
 
 // Lo que ve la tienda pública: sin costo ni datos internos
-export type PublicProduct = Pick<Product, 'id' | 'slug' | 'name' | 'category' | 'subcategory' | 'price' | 'offerPrice' | 'offerEndsAt' | 'stock' | 'image' | 'images' | 'description' | 'variants' | 'createdAt'>
+export type PublicProduct = Pick<Product, 'id' | 'slug' | 'name' | 'category' | 'subcategory' | 'price' | 'offerPrice' | 'offerEndsAt' | 'stock' | 'image' | 'images' | 'description' | 'variants' | 'variantStock' | 'createdAt'>
 
 export interface SaleItem {
   productId: string
@@ -72,12 +73,13 @@ export interface StockMovement {
   productId: string
   delta: number
   reason: MovementReason
+  variant?: string | null
   ref?: string | null   // id de venta / compra
   createdAt: string
   by: string
 }
 
-export interface PurchaseLine { productId?: string; description: string; qty: number; unitCost: number; matched: boolean; markupPct: number; suggestedPrice: number; barcode?: string }
+export interface PurchaseLine { productId?: string; variant?: string; description: string; qty: number; unitCost: number; matched: boolean; markupPct: number; suggestedPrice: number; barcode?: string }
 export interface Purchase {
   id: string
   supplier: string

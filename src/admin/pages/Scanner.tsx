@@ -42,6 +42,7 @@ export function ScannerPage() {
                 <div className="bg-stone-50 rounded-lg p-3"><div className="text-xs text-stone-500">Stock</div><div className={`font-bold text-lg ${last.p.stock === 0 ? 'text-red-600' : ''}`}>{last.p.stock}</div></div>
                 {owner ? <div className="bg-stone-50 rounded-lg p-3"><div className="text-xs text-stone-500">Margen</div><div className="font-bold text-lg text-emerald-700">{pct((last.p.price - last.p.cost) / last.p.price)}</div></div> : <div className="bg-stone-50 rounded-lg p-3"><div className="text-xs text-stone-500">SKU</div><div className="font-bold text-sm font-mono mt-1">{last.p.sku}</div></div>}
               </div>
+              {last.p.variantStock && <div className="mt-3 flex flex-wrap gap-2 text-sm">{Object.entries(last.p.variantStock).map(([o, n]) => <span key={o} className={`px-2 py-1 rounded-lg border ${n === 0 ? 'text-red-600 border-red-200 bg-red-50' : 'bg-white'}`}>{o}: <b>{n}</b></span>)}</div>}
               <div className="flex justify-center mt-4"><Barcode value={last.p.barcode} /></div>
               <div className="flex gap-2 mt-4 flex-wrap"><Link href="/admin/pos" className={btnPrimary}><ShoppingCart size={14} /> Vender</Link>{owner && <Link href={`/admin/productos/${last.p.id}`} className={btnGhost}><Pencil size={14} /> Editar</Link>}<Link href={`/admin/etiquetas?ids=${last.p.id}`} className={btnGhost}><Tag size={14} /> Imprimir etiqueta</Link></div>
             </div>

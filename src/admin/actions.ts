@@ -8,7 +8,7 @@ import { and, eq, inArray, ne, sql } from 'drizzle-orm'
 import { db, schema } from '@/db'
 import { endSession, hashPassword, requireUser } from '@/lib/auth'
 import { getSale, getSettings } from '@/lib/data'
-import { adjustStock as adjust, changeSaleStatus, createSale, moveStock, StockError } from '@/lib/stock'
+import { adjustStock as adjust, changeSaleStatus, createSale, moveStock, setStock, StockError } from '@/lib/stock'
 import { ean13 } from '@/lib/format'
 import { AiUnavailable, readInvoice, type InvoiceReading } from '@/lib/ai'
 import type { LabelTemplate, MovementReason, PaymentMethod, Product, Purchase, Sale, SaleStatus, Settings } from '@/lib/types'
@@ -51,21 +51,23 @@ export async function updateSaleStatus(number: number, status: SaleStatus): Prom
 
 // ---------- Stock ----------
 
-export async function adjustStock(productId: string, delta: number, reason: MovementReason, ref?: string): Promise<Result> {
+export async function adjustStock(productId: string, delta: number, reason: MovementReason, ref?: string, variant?: string | null): Promise<Result> {
   const u = await requireUser()
   if (!Number.isInteger(delta)) return fail('Cantidad inválida')
-  try { await adjust(productId, delta, reason, u.name, ref) } catch (e) { if (e instanceof StockError) return fail(e.message); throw e }
+  try { await adjust(productId, delta, reason, u.name, ref, variant) } catch (e) { if (e instanceof StockError) return fail(e.message); throw e }
   refresh()
   return { ok: true }
 }
 
 /** Conteo físico: lleva cada producto exactamente a lo contado (en una transacción). */
-export async function applyCount(counts: { productId: string; counted: number }[]): Promise<Result> {
+export async function applyCount(counts: { productId: string; variant?: string | null; counted: number }[]): Promise<Result> {
   const u = await requireUser()
   await db.transaction(async tx => {
     for (const c of counts) {
-      const [p] = await tx.select({ stock: schema.products.stock }).from(schema.products).where(eq(schema.products.id, c.productId)).for('update')
-      if (p && c.counted >= 0) await moveStock(tx, c.productId, c.counted - p.stock, 'ajuste', u.name, 'conteo')
+      const [p] = await tx.select({ stock: schema.products.stock, vs: schema.products.variantStock }).from(schema.products).where(eq(schema.products.id, c.productId)).for('update')
+      if (!p || c.counted < 0) continue
+      const current = c.variant && p.vs ? p.vs[c.variant] ?? 0 : p.stock
+      await moveStock(tx, c.productId, c.counted - current, 'ajuste', u.name, 'conteo', c.variant)
     }
   })
   refresh()
@@ -106,15 +108,13 @@ export async function saveProduct(p: Product): Promise<Result<{ id: string }>> {
     image: p.images?.[0] ?? p.image, images: p.images?.length ? p.images : [p.image], description: p.description || null,
     variants: p.variants?.attr && p.variants.options.length ? p.variants : null, active: p.active !== false,
   }
+  const options = values.variants?.options ?? []
   await db.transaction(async tx => {
-    if (existing) {
-      await tx.update(schema.products).set(values).where(eq(schema.products.id, p.id))
-      // El stock no se pisa: la diferencia se registra como ajuste para que quede trazado
-      if (p.stock !== existing.stock) await moveStock(tx, p.id, p.stock - existing.stock, 'ajuste', u.name, 'edición de producto')
-    } else {
-      await tx.insert(schema.products).values({ id: p.id, ...values, stock: 0 })
-      if (p.stock > 0) await moveStock(tx, p.id, p.stock, 'ajuste', u.name, 'alta de producto')
-    }
+    const ref = existing ? 'edición de producto' : 'alta de producto'
+    if (!existing) await tx.insert(schema.products).values({ id: p.id, ...values, stock: 0, variantStock: options.length ? Object.fromEntries(options.map(o => [o, 0])) : null })
+    else await tx.update(schema.products).set(values).where(eq(schema.products.id, p.id))
+    // El stock nunca se pisa: cada diferencia se registra como ajuste para que quede trazada
+    await setStock(tx, p.id, options.length ? { perVariant: Object.fromEntries(options.map(o => [o, p.variantStock?.[o] ?? 0])) } : { total: p.stock }, 'ajuste', u.name, ref)
   })
   refresh()
   return { ok: true, id: p.id }
@@ -170,7 +170,7 @@ export async function confirmPurchase(pu: Omit<Purchase, 'id' | 'status' | 'tota
     const [row] = await tx.insert(schema.purchases).values({ supplier: pu.supplier, date: pu.date, invoiceNumber: pu.invoiceNumber || null, lines, total, status: 'confirmada', source: pu.source }).returning({ id: schema.purchases.id })
     for (const l of lines) {
       if (!l.productId) continue
-      await moveStock(tx, l.productId, l.qty, 'compra', u.name, 'c' + row.id)
+      await moveStock(tx, l.productId, l.qty, 'compra', u.name, 'c' + row.id, l.variant)
       await tx.update(schema.products).set({ cost: Math.round(l.unitCost), markupPct: l.markupPct, ...(applyPrices ? { price: Math.round(l.suggestedPrice) } : {}) }).where(eq(schema.products.id, l.productId))
     }
   })

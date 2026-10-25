@@ -29,6 +29,13 @@
       "when": 1792943467563,
       "tag": "0003_ofertas_y_etiquetas",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792944428803,
+      "tag": "0004_stock_por_variante",
+      "breakpoints": true
     }
   ]
 }

@@ -9,7 +9,7 @@ import { requireUser } from '@/lib/auth'
 import { getAnthropicKey, getSettings } from '@/lib/data'
 import { mapColumns, AiUnavailable } from '@/lib/ai'
 import { parseTable, parseMoney, parseDate } from '@/lib/sheets'
-import { moveStock } from '@/lib/stock'
+import { setStock } from '@/lib/stock'
 import { ean13 } from '@/lib/format'
 import { CATEGORIES } from '@/data/categories'
 
@@ -144,6 +144,10 @@ async function importProducts(rows: Record<string, string>[], get: Getter, by: s
     const options = [...new Set(rs.map(x => get(x, 'variantValue')).filter(Boolean))]
     const attr = get(r, 'variantAttr') || 'Opción'
     const stock = Math.max(0, Math.round(rs.reduce((a, x) => a + (parseMoney(get(x, 'stock')) ?? 0), 0)))
+    // Stock de cada talle tal como lo tiene Empretienda (una fila por opción)
+    const perVariant: Record<string, number> = {}
+    for (const x of rs) { const v = get(x, 'variantValue'); if (v) perVariant[v] = (perVariant[v] ?? 0) + Math.max(0, Math.round(parseMoney(get(x, 'stock')) ?? 0)) }
+    const target = options.length ? { perVariant } : { total: stock }
     const images = [...new Set(rs.flatMap(x => get(x, 'images').split(/[\s,;|]+/)).filter(s => /^https?:\/\//.test(s)))]
     const sku = get(r, 'sku'); const externalId = get(r, 'externalId') || null
     const cost = parseMoney(get(r, 'cost'))
@@ -167,7 +171,7 @@ async function importProducts(rows: Record<string, string>[], get: Getter, by: s
         // No pisar fotos ya descargadas a la base con las URLs viejas de Empretienda
         const keepImages = existing.image.startsWith('/img/')
         await tx.update(schema.products).set({ ...values, ...(keepImages ? { image: existing.image, images: existing.images } : {}), deleted: false }).where(eq(schema.products.id, existing.id))
-        if (stock !== existing.stock) await moveStock(tx, existing.id, stock - existing.stock, 'migracion', by, 'Empretienda')
+        await setStock(tx, existing.id, target, 'migracion', by, 'Empretienda')
         updated++
         if (!existing.cost && !cost) noCost++
       } else {
@@ -179,7 +183,7 @@ async function importProducts(rows: Record<string, string>[], get: Getter, by: s
           sku: sku || `BA-${category.slice(0, 3).toUpperCase()}-${String(n + 1).padStart(3, '0')}`,
           barcode: get(r, 'barcode') || await uniqueBarcode(),
         })
-        if (stock) await moveStock(tx, id, stock, 'migracion', by, 'Empretienda')
+        await setStock(tx, id, target, 'migracion', by, 'Empretienda')
         created++
         if (!cost) noCost++
       }
