@@ -6,7 +6,7 @@ services:
       POSTGRES_USER: baltica
       POSTGRES_PASSWORD: baltica
       POSTGRES_DB: baltica
-    ports: ["5433:5432"]
+    ports: ["127.0.0.1:${BALTICA_DB_PORT:-5433}:5432"]
     volumes: [pgdata:/var/lib/postgresql/data]
 volumes:
   pgdata:

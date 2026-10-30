@@ -89,7 +89,7 @@ export async function createSale(s: NewSale) {
     const shipping = s.shipping ?? 0
     const [sale] = await tx.insert(schema.sales).values({
       channel: s.channel, subtotal, discount, shipping, total: subtotal - discount + shipping, payment: s.payment, status: s.status,
-      customer: s.customer ?? null, shippingMethod: s.shippingMethod ?? null, seller: s.seller ?? null, note: s.note ?? null, couponCode: s.couponCode ?? null, stockApplied: s.applyStock,
+      customer: s.customer ?? null, shippingMethod: s.shippingMethod ?? null, seller: s.seller ?? null, note: s.note ?? null, couponCode: s.couponCode ?? null, stockApplied: s.applyStock, paid: s.status === 'pagada', delivered: s.status === 'entregada',
     }).returning()
     await tx.insert(schema.saleItems).values(items.map(i => ({ ...i, saleNumber: sale.number })))
     if (s.applyStock) await moveItems(tx, items, -1, s.channel === 'local' ? 'venta_local' : 'venta_online', s.by, saleId(sale.number))
@@ -108,12 +108,14 @@ export async function changeSaleStatus(number: number, status: SaleStatus, by: s
   return db.transaction(async tx => {
     const [sale] = await tx.select().from(schema.sales).where(eq(schema.sales.number, number)).for('update')
     if (!sale) throw new Error('Venta inexistente')
+    if (!['pendiente', 'pagada', 'enviada', 'entregada', 'cancelada', 'a_resolver'].includes(status)) throw new Error('Estado inválido')
+    if (sale.payment === 'mercadopago' && !sale.paid && CONSUMES_STOCK.includes(status)) throw new Error('Esperá la confirmación de Mercado Pago')
     const items = await tx.select().from(schema.saleItems).where(eq(schema.saleItems.saleNumber, number))
     const ref = saleId(number)
     let stockApplied = sale.stockApplied
     if (status === 'cancelada' && stockApplied) { await moveItems(tx, items, 1, 'devolucion', by, ref); stockApplied = false }
     if (CONSUMES_STOCK.includes(status) && !stockApplied) { await moveItems(tx, items, -1, sale.channel === 'local' ? 'venta_local' : 'venta_online', by, ref); stockApplied = true }
-    await tx.update(schema.sales).set({ status, stockApplied }).where(eq(schema.sales.number, number))
+    await tx.update(schema.sales).set({ status, stockApplied, ...(status === 'pagada' ? { paid: true } : {}), ...(status === 'entregada' ? { delivered: true } : {}), ...(status === 'cancelada' ? { paid: false, packed: false, delivered: false } : {}) }).where(eq(schema.sales.number, number))
   })
 }
 

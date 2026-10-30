@@ -80,18 +80,18 @@ export async function processPayment(paymentId: string): Promise<number | null> 
     if (status === 'approved') {
       if (sale.status !== 'pendiente') { await tx.update(schema.sales).set(base).where(eq(schema.sales.number, number)); return }
       if ((pay.transaction_amount ?? 0) + 0.5 < sale.total) {
-        await tx.update(schema.sales).set({ ...base, status: 'a_resolver', note: `Mercado Pago aprobó $${pay.transaction_amount} pero el pedido es de $${sale.total}. Revisar.` }).where(eq(schema.sales.number, number))
+        await tx.update(schema.sales).set({ ...base, status: 'a_resolver', paid: true, note: `Mercado Pago aprobó $${pay.transaction_amount} pero el pedido es de $${sale.total}. Revisar.` }).where(eq(schema.sales.number, number))
         return
       }
       const items = await tx.select().from(schema.saleItems).where(eq(schema.saleItems.saleNumber, number))
       try {
         // Savepoint: si falta stock se deshace sólo el descuento, y la venta queda marcada para resolver
         await tx.transaction(inner => moveItems(inner, items, -1, 'venta_online', 'tienda online', ref))
-        await tx.update(schema.sales).set({ ...base, status: 'pagada', stockApplied: true }).where(eq(schema.sales.number, number))
+        await tx.update(schema.sales).set({ ...base, status: 'pagada', stockApplied: true, paid: true }).where(eq(schema.sales.number, number))
         justPaid = true
       } catch (e) {
         if (!(e instanceof StockError)) throw e
-        await tx.update(schema.sales).set({ ...base, status: 'a_resolver', note: `Pago aprobado pero ${e.message}. Reponer, ofrecer alternativa o devolver el dinero desde Mercado Pago.` }).where(eq(schema.sales.number, number))
+        await tx.update(schema.sales).set({ ...base, status: 'a_resolver', paid: true, note: `Pago aprobado pero ${e.message}. Reponer, ofrecer alternativa o devolver el dinero desde Mercado Pago.` }).where(eq(schema.sales.number, number))
         toResolve = e.message
       }
       return
@@ -102,7 +102,7 @@ export async function processPayment(paymentId: string): Promise<number | null> 
         const items = await tx.select().from(schema.saleItems).where(eq(schema.saleItems.saleNumber, number))
         await moveItems(tx, items, 1, 'devolucion', 'Mercado Pago', ref)
       }
-      await tx.update(schema.sales).set({ ...base, status: 'cancelada', stockApplied: false, note: `Pago ${status === 'refunded' ? 'devuelto' : 'contracargado'} en Mercado Pago` }).where(eq(schema.sales.number, number))
+      await tx.update(schema.sales).set({ ...base, status: 'cancelada', stockApplied: false, paid: false, packed: false, delivered: false, note: `Pago ${status === 'refunded' ? 'devuelto' : 'contracargado'} en Mercado Pago` }).where(eq(schema.sales.number, number))
       return
     }
 

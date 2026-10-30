@@ -3,6 +3,8 @@ export interface Category {
   slug: string
   name: string
   image?: string
+  href?: string
+  tileTitle?: string
   children?: { slug: string; name: string }[]
 }
 

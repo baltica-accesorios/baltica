@@ -2,6 +2,8 @@
 import { and, asc, desc, eq, gte, inArray, sql } from 'drizzle-orm'
 import { db, schema } from '@/db'
 import { DEFAULT_SETTINGS, DEFAULT_TEMPLATES } from './defaults'
+import { activePromotion, promotionMatches, promotionalProduct } from './promotions'
+import { decorateAttributes } from './variants'
 import { offerActive } from './pricing'
 import type { Coupon, LabelTemplate, MovementReason, PaymentMethod, Product, PublicProduct, Purchase, Sale, SaleStatus, Settings, StockMovement } from './types'
 
@@ -20,7 +22,8 @@ export function toProduct(r: ProductRow): Product {
 
 /** `wholesale`: cliente mayorista aprobado → ve el precio mayorista (si el producto lo tiene) */
 export function toPublic(p: Product, wholesale = false): PublicProduct {
-  const { id, slug, name, category, subcategory, stock, image, images, description, variants, variantStock, createdAt } = p
+  const { id, slug, name, category, subcategory, stock, image, images, description, variants: sourceVariants, variantStock, createdAt } = p
+  const variants = wholesale && p.wholesalePrice && sourceVariants ? { ...sourceVariants, details: Object.fromEntries(Object.entries(sourceVariants.details ?? {}).map(([key, detail]) => [key, { image: detail.image, images: detail.images }])) } : sourceVariants
   if (wholesale && p.wholesalePrice) return { id, slug, name, category, subcategory, price: p.wholesalePrice, offerPrice: null, offerEndsAt: null, stock, image, images, description, variants, variantStock, createdAt, wholesale: true }
   const price = p.price
   // Las ofertas vencidas no llegan a la tienda
@@ -36,7 +39,7 @@ function toSale(r: SaleRow, items: (typeof schema.saleItems.$inferSelect)[]): Sa
     items: items.map(i => ({ productId: i.productId, name: i.name, qty: i.qty, unitPrice: i.unitPrice, unitCost: i.unitCost, variant: i.variant })),
     subtotal: r.subtotal, discount: r.discount, shipping: r.shipping, total: r.total, payment: r.payment as PaymentMethod,
     status: r.status as SaleStatus, customer: r.customer, shippingMethod: r.shippingMethod, note: r.note, seller: r.seller,
-    stockApplied: r.stockApplied, mpPaymentId: r.mpPaymentId, couponCode: r.couponCode,
+    paid: r.paid, packed: r.packed, delivered: r.delivered, stockApplied: r.stockApplied, mpPaymentId: r.mpPaymentId, couponCode: r.couponCode,
   }
 }
 
@@ -68,17 +71,22 @@ export async function publicProducts(filter: { category?: string; subcategory?: 
   if (filter.subcategory) conds.push(eq(schema.products.subcategory, filter.subcategory))
   if (filter.search) conds.push(sql`unaccent_lower(${schema.products.name}) like '%' || unaccent_lower(${filter.search}) || '%'`)
   const rows = await db.select().from(schema.products).where(and(...conds)).orderBy(desc(schema.products.createdAt))
-  return rows.map(r => toPublic(toProduct(r), wholesale))
+  const settings = await getSettings()
+  const rules = settings.promotions ?? []
+  return rows.map(r => ({ ...decorateAttributes(toPublic(promotionalProduct(toProduct(r), rules), wholesale), settings.attributes ?? []), promotionLabel: rules.some(rule => rule.type === '2x1' && activePromotion(rule) && promotionMatches(rule, r)) ? '2×1' : undefined }))
 }
 
 export async function publicProductBySlug(slug: string, wholesale = false): Promise<PublicProduct | null> {
   const [r] = await db.select().from(schema.products).where(and(eq(schema.products.slug, slug), visible))
-  return r ? toPublic(toProduct(r), wholesale) : null
+  if (!r) return null
+  const settings = await getSettings()
+  const rules = settings.promotions ?? []
+  return { ...decorateAttributes(toPublic(promotionalProduct(toProduct(r), rules), wholesale), settings.attributes ?? []), promotionLabel: rules.some(rule => rule.type === '2x1' && activePromotion(rule) && promotionMatches(rule, r)) ? '2×1' : undefined }
 }
 
 async function attachItems(rows: SaleRow[]): Promise<Sale[]> {
   if (!rows.length) return []
-  const items = await db.select().from(schema.saleItems).where(inArray(schema.saleItems.saleNumber, rows.map(r => r.number)))
+  const items = await db.select().from(schema.saleItems).where(inArray(schema.saleItems.saleNumber, rows.map(r => r.number))).orderBy(schema.saleItems.id)
   const by = new Map<number, typeof items>()
   for (const i of items) { const l = by.get(i.saleNumber) ?? []; l.push(i); by.set(i.saleNumber, l) }
   return rows.map(r => toSale(r, by.get(r.number) ?? []))

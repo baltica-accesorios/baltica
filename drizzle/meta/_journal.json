@@ -57,6 +57,13 @@
       "when": 1792944944519,
       "tag": "0007_quitar_wholesale_bool",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793237219473,
+      "tag": "0008_gestion_tienda",
+      "breakpoints": true
     }
   ]
 }

@@ -8,8 +8,10 @@ import { and, eq, inArray, ne, sql } from 'drizzle-orm'
 import { db, schema } from '@/db'
 import { endSession, hashPassword, requireUser } from '@/lib/auth'
 import { getSale, getSettings } from '@/lib/data'
-import { adjustStock as adjust, changeSaleStatus, createSale, moveStock, setStock, StockError } from '@/lib/stock'
-import { ean13 } from '@/lib/format'
+import { moveItems, adjustStock as adjust, changeSaleStatus, createSale, moveStock, setStock, StockError } from '@/lib/stock'
+
+import { attributeDefinition, productInput, settingsPatch } from '@/lib/validation'
+import { productStockTotal, redistributionError, variantStructureChanged, attributeKey, attributesOf, combinationOptions } from '@/lib/variants'
 import { normCode } from '@/lib/coupons'
 import { sendEmail, siteUrl } from '@/lib/email'
 import { AiUnavailable, readInvoice, type InvoiceReading } from '@/lib/ai'
@@ -28,7 +30,8 @@ export async function logout() {
 
 export async function registerLocalSale(items: { productId: string; qty: number; unitPrice: number; variant?: string | null }[], opts: { payment: PaymentMethod; discount: number; seller?: string; customer?: string }): Promise<Result<{ sale: Sale }>> {
   const u = await requireUser()
-  if (!items.length || items.some(i => i.qty < 1 || i.unitPrice < 0)) return fail('Venta vacía o con cantidades inválidas')
+  if (!items.length || items.some(i => !Number.isInteger(i.qty) || i.qty < 1 || !Number.isInteger(i.unitPrice) || i.unitPrice < 0)) return fail('Venta vacía o con cantidades inválidas')
+  if (!Number.isInteger(opts.discount) || opts.discount < 0 || opts.discount > items.reduce((sum, i) => sum + i.qty * i.unitPrice, 0)) return fail('Descuento inválido')
   try {
     const s = await createSale({ channel: 'local', items, payment: opts.payment, discount: Math.max(0, Math.round(opts.discount)), seller: opts.seller || u.name, customer: opts.customer ? { name: opts.customer } : null, status: 'pagada', applyStock: true, by: opts.seller || u.name })
     refresh()
@@ -44,8 +47,7 @@ export async function updateSaleStatus(number: number, status: SaleStatus): Prom
   try {
     await changeSaleStatus(number, status, u.name)
   } catch (e) {
-    if (e instanceof StockError) return fail(e.message)
-    throw e
+    return fail(e instanceof Error ? e.message : 'No se pudo actualizar la venta')
   }
   refresh()
   return { ok: true }
@@ -82,9 +84,9 @@ const slugify = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]
 
 export async function newBarcode(): Promise<string> {
   await requireUser()
-  // Prefijo 779 (Argentina) + 9 dígitos internos + verificador. Se busca uno libre.
+  // Código interno de seis cifras, imprimible y escaneable con CODE128.
   for (;;) {
-    const code = ean13('779' + String(Math.floor(Math.random() * 1e9)).padStart(9, '0'))
+    const code = String(100000 + Math.floor(Math.random() * 900000))
     const [dup] = await db.select({ id: schema.products.id }).from(schema.products).where(eq(schema.products.barcode, code))
     if (!dup) return code
   }
@@ -92,6 +94,14 @@ export async function newBarcode(): Promise<string> {
 
 export async function saveProduct(p: Product): Promise<Result<{ id: string }>> {
   const u = await requireUser('duena')
+  const checked = productInput.safeParse(p)
+  if (!checked.success) return fail(checked.error.issues.map(i => i.path.join('.') + ': ' + i.message).join('; '))
+  p = checked.data
+  const attrs = attributesOf(p.variants)
+  if (new Set(attrs.map(a => attributeKey(a.attr))).size !== attrs.length || attrs.some(a => new Set(a.options.map(attributeKey)).size !== a.options.length)) return fail('No repitas atributos ni opciones del mismo atributo')
+  if (p.variants?.attributes && p.variants.attributes.reduce((n, a) => n * a.options.length, 1) > 500) return fail('Máximo 500 combinaciones por producto')
+  if (p.variants?.attributes && JSON.stringify(combinationOptions(p.variants.attributes)) !== JSON.stringify(p.variants.options)) return fail('Las combinaciones no coinciden con los atributos')
+  if (p.variants && new Set(p.variants.options).size !== p.variants.options.length) return fail('Hay variantes repetidas')
   if (!p.name.trim() || !(p.price > 0)) return fail('Nombre y precio son obligatorios')
   const [existing] = await db.select().from(schema.products).where(eq(schema.products.id, p.id))
   let slug = p.slug || slugify(p.name)
@@ -111,13 +121,21 @@ export async function saveProduct(p: Product): Promise<Result<{ id: string }>> {
     variants: p.variants?.attr && p.variants.options.length ? p.variants : null, active: p.active !== false,
   }
   const options = values.variants?.options ?? []
-  await db.transaction(async tx => {
+  const allocationError = await db.transaction(async tx => {
+    if (existing) {
+      const [current] = await tx.select().from(schema.products).where(eq(schema.products.id, p.id)).for('update')
+      if (current.stock > 0 && variantStructureChanged(current.variants, values.variants)) {
+        const error = redistributionError(current.stock, productStockTotal(p))
+        if (error) return error
+      }
+    }
     const ref = existing ? 'edición de producto' : 'alta de producto'
     if (!existing) await tx.insert(schema.products).values({ id: p.id, ...values, stock: 0, variantStock: options.length ? Object.fromEntries(options.map(o => [o, 0])) : null })
     else await tx.update(schema.products).set(values).where(eq(schema.products.id, p.id))
     // El stock nunca se pisa: cada diferencia se registra como ajuste para que quede trazada
     await setStock(tx, p.id, options.length ? { perVariant: Object.fromEntries(options.map(o => [o, p.variantStock?.[o] ?? 0])) } : { total: p.stock }, 'ajuste', u.name, ref)
   })
+  if (allocationError) return fail(allocationError)
   refresh()
   return { ok: true, id: p.id }
 }
@@ -184,7 +202,25 @@ export async function confirmPurchase(pu: Omit<Purchase, 'id' | 'status' | 'tota
 
 export async function saveSettings(patch: Partial<Settings>): Promise<Result> {
   await requireUser('duena')
-  const value = { ...(await getSettings()), ...patch }
+  const checked = settingsPatch.safeParse(patch)
+  if (!checked.success) return fail(checked.error.issues.map(i => i.path.join('.') + ': ' + i.message).join('; '))
+  const previous = await getSettings()
+  const value = { ...previous, ...checked.data }
+  if (checked.data.attributes) {
+    const definitions = checked.data.attributes
+    if (new Set(definitions.map(a => a.id)).size !== definitions.length || new Set(definitions.map(a => attributeKey(a.name))).size !== definitions.length) return fail('Hay atributos repetidos')
+    if (definitions.some(a => new Set(a.values.map(v => attributeKey(v.label))).size !== a.values.length)) return fail('Hay opciones repetidas en un atributo')
+    const rows = await db.select({ variants: schema.products.variants }).from(schema.products).where(eq(schema.products.deleted, false))
+    for (const old of previous.attributes ?? []) {
+      const uses = rows.flatMap(p => attributesOf(p.variants)).filter(a => a.catalogId === old.id || attributeKey(a.attr) === attributeKey(old.name))
+      if (!uses.length) continue
+      const next = definitions.find(a => a.id === old.id)
+      if (!next || next.name !== old.name || uses.some(a => a.options.some(option => !next.values.some(v => v.label === option)))) return fail(`El atributo "${old.name}" está en uso. Conservá su nombre y las opciones asignadas a productos; podés agregar opciones y cambiar los colores.`)
+    }
+  }
+  if (value.categories && (new Set(value.categories.map(c => c.slug)).size !== value.categories.length || value.categories.some(c => new Set(c.children?.map(s => s.slug)).size !== (c.children?.length ?? 0)))) return fail('Hay categorías o subcategorías repetidas')
+  if (new Set(value.shippingOptions.map(o => o.id)).size !== value.shippingOptions.length) return fail('Hay envíos repetidos')
+  if (new Set(value.promotions?.map(p => p.id)).size !== (value.promotions?.length ?? 0)) return fail('Hay promociones repetidas')
   await db.insert(schema.settings).values({ id: 'main', value }).onConflictDoUpdate({ target: schema.settings.id, set: { value } })
   refresh()
   return { ok: true }
@@ -219,6 +255,8 @@ export async function deleteTemplate(id: string): Promise<Result> {
 
 export async function saveCoupon(c: { code: string; type: 'pct' | 'fixed' | 'envio'; value: number; minAmount: number; endsAt: string | null; maxUses: number | null; active: boolean }, isNew: boolean): Promise<Result> {
   await requireUser('duena')
+  if (c.endsAt && !Number.isFinite(Date.parse(c.endsAt))) return fail('Fecha inválida')
+  if (!Number.isFinite(c.value) || !Number.isFinite(c.minAmount) || c.minAmount < 0 || (c.maxUses !== null && (!Number.isInteger(c.maxUses) || c.maxUses < 1))) return fail('Valores de cupón inválidos')
   const code = normCode(c.code)
   if (!/^[A-Z0-9_-]{3,30}$/.test(code)) return fail('El código tiene que tener entre 3 y 30 letras o números, sin espacios')
   if (c.type === 'pct' && !(c.value > 0 && c.value <= 100)) return fail('El porcentaje tiene que estar entre 1 y 100')
@@ -310,4 +348,87 @@ export async function readInvoicePhoto(form: FormData): Promise<Result<{ reading
     console.error('readInvoice', e)
     return fail('No se pudo leer la factura. Probá con una foto más nítida o cargala a mano.')
   }
+}
+
+export async function quickUpdateProduct(id: string, price: number, stock: number, variantStock?: Record<string, number> | null): Promise<Result> {
+  const u = await requireUser('duena')
+  if (!Number.isInteger(price) || price <= 0 || !Number.isInteger(stock) || stock < 0 || Object.values(variantStock ?? {}).some(n => !Number.isInteger(n) || n < 0)) return fail('Precio o stock inválido')
+  await db.transaction(async tx => {
+    const [p] = await tx.select().from(schema.products).where(eq(schema.products.id, id)).for('update')
+    if (!p) throw new Error('Producto inexistente')
+    const options = p.variants?.options ?? []
+    if (options.length && (!variantStock || options.some(o => !(o in variantStock)))) throw new Error('Completá el stock de todas las variantes')
+    await tx.update(schema.products).set({ price }).where(eq(schema.products.id, id))
+    await setStock(tx, id, options.length ? { perVariant: Object.fromEntries(options.map(o => [o, variantStock![o]])) } : { total: stock }, 'ajuste', u.name, 'edición rápida')
+  })
+  refresh(); return { ok: true }
+}
+
+export async function updateFulfillment(number: number, field: 'paid' | 'packed' | 'delivered', value: boolean): Promise<Result<{ sale: Sale }>> {
+  const u = await requireUser()
+  if (!['paid', 'packed', 'delivered'].includes(field) || typeof value !== 'boolean') return fail('Estado inválido')
+  try {
+    await db.transaction(async tx => {
+      const [s] = await tx.select().from(schema.sales).where(eq(schema.sales.number, number)).for('update')
+      if (!s || s.channel !== 'online' || s.status === 'cancelada') throw new Error('El seguimiento corresponde a pedidos online activos')
+      if (s.payment === 'mercadopago' && !s.paid && value) throw new Error('Esperá la confirmación de Mercado Pago')
+      if (field === 'paid' && s.payment === 'mercadopago') throw new Error('Mercado Pago confirma el pago automáticamente')
+      let stockApplied = s.stockApplied
+      if (value && !stockApplied) {
+        const items = await tx.select().from(schema.saleItems).where(eq(schema.saleItems.saleNumber, number))
+        await moveItems(tx, items, -1, 'venta_online', u.name, 's' + number); stockApplied = true
+      }
+      const next = { paid: s.paid, packed: s.packed, delivered: s.delivered, [field]: value }
+      const status = next.delivered ? 'entregada' : s.status === 'enviada' ? 'enviada' : next.paid ? 'pagada' : 'pendiente'
+      await tx.update(schema.sales).set({ ...next, status, stockApplied }).where(eq(schema.sales.number, number))
+    })
+  } catch (e) { return fail(e instanceof Error ? e.message : 'No se pudo actualizar') }
+  refresh(); return { ok: true, sale: (await getSale(number))! }
+}
+
+export async function editSale(number: number, lines: { productId: string; qty: number; unitPrice: number; variant?: string | null }[], expected: string): Promise<Result<{ sale: Sale }>> {
+  const u = await requireUser()
+  if (!lines.length || lines.length > 200 || lines.some(i => !Number.isInteger(i.qty) || i.qty < 1 || !Number.isInteger(i.unitPrice) || i.unitPrice < 0)) return fail('Revisá las cantidades y precios')
+  try {
+    await db.transaction(async tx => {
+      const [s] = await tx.select().from(schema.sales).where(eq(schema.sales.number, number)).for('update')
+      if (!s || s.status === 'cancelada') throw new Error('La venta está cancelada o ya no existe')
+      const old = await tx.select().from(schema.saleItems).where(eq(schema.saleItems.saleNumber, number)).orderBy(schema.saleItems.id)
+      const fingerprint = JSON.stringify(old.map(i => [i.productId, i.qty, i.unitPrice, i.variant]))
+      if (fingerprint !== expected) throw new Error('Otra persona modificó la venta. Cerrala y volvé a abrirla.')
+      if (s.payment === 'mercadopago' && !s.mpPaymentId) throw new Error('Esperá a que se confirme el pago de Mercado Pago antes de editar el pedido')
+      const prods = await tx.select().from(schema.products).where(inArray(schema.products.id, [...new Set(lines.map(i => i.productId))]))
+      const items = lines.map(i => {
+        const p = prods.find(p => p.id === i.productId)
+        if (!p || (p.deleted && !old.some(o => o.productId === p.id))) throw new Error('Producto no disponible')
+        if (p.variants?.options.length && !p.variants.options.includes(i.variant ?? '')) throw new Error(`Elegí la variante de ${p.name}`)
+        const prior = old.find(o => o.productId === p.id && o.variant === (i.variant || null))
+        return { ...i, variant: i.variant || null, name: prior?.name ?? p.name, unitCost: prior?.unitCost ?? p.cost, saleNumber: number }
+      })
+      const subtotal = items.reduce((sum, i) => sum + i.qty * i.unitPrice, 0)
+      if (subtotal < s.discount) throw new Error('El subtotal no puede ser menor al descuento aplicado')
+      // Lock all products in a stable order before returning and consuming stock.
+      await tx.select({ id: schema.products.id }).from(schema.products).where(inArray(schema.products.id, [...new Set([...old, ...items].map(i => i.productId))])).orderBy(schema.products.id).for('update')
+      if (s.stockApplied) {
+        await moveItems(tx, old, 1, 'devolucion', u.name, `s${number} · edición`)
+        await moveItems(tx, items, -1, s.channel === 'online' ? 'venta_online' : 'venta_local', u.name, `s${number} · edición`)
+      }
+      await tx.delete(schema.saleItems).where(eq(schema.saleItems.saleNumber, number))
+      await tx.insert(schema.saleItems).values(items)
+      await tx.update(schema.sales).set({ subtotal, total: subtotal - s.discount + s.shipping }).where(eq(schema.sales.number, number))
+    })
+  } catch (e) { return fail(e instanceof Error ? e.message : 'No se pudo editar la venta') }
+  refresh(); return { ok: true, sale: (await getSale(number))! }
+}
+
+export async function saveAttribute(raw: import('@/lib/types').AttributeDefinition): Promise<Result> {
+  await requireUser('duena')
+  const result = attributeDefinition.safeParse(raw)
+  if (!result.success) return fail(result.error.issues.map(i => i.message).join('; '))
+  const attributes = (await getSettings()).attributes ?? []
+  return saveSettings({ attributes: [...attributes.filter(a => a.id !== result.data.id), result.data] })
+}
+export async function deleteAttribute(id: string): Promise<Result> {
+  await requireUser('duena')
+  return saveSettings({ attributes: ((await getSettings()).attributes ?? []).filter(a => a.id !== id) })
 }

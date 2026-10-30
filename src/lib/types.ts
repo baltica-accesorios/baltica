@@ -1,6 +1,8 @@
 export type Channel = 'online' | 'local'
 
-export interface Variant { attr: string; options: string[] }
+export interface AttributeDefinition { id: string; name: string; type: 'text' | 'color'; values: { label: string; color?: string }[] }
+export interface ProductAttribute { attr: string; options: string[]; catalogId?: string; type?: 'text' | 'color'; colors?: Record<string, string> }
+export interface Variant { attr: string; options: string[]; attributes?: ProductAttribute[]; details?: Record<string, { price?: number; image?: string; images?: string[] }> }
 
 export interface Product {
   id: string
@@ -18,7 +20,7 @@ export interface Product {
   minStock?: number | null
   markupPct?: number | null // % de ganancia propio del producto (si no, usa el de configuración)
   sku: string
-  barcode: string        // EAN-13 generado por el sistema (o el del proveedor)
+  barcode: string        // código interno de seis cifras (CODE128) o código del proveedor
   image: string
   images?: string[]
   description?: string | null
@@ -29,7 +31,7 @@ export interface Product {
 }
 
 // Lo que ve la tienda pública: sin costo ni datos internos
-export type PublicProduct = Pick<Product, 'id' | 'slug' | 'name' | 'category' | 'subcategory' | 'price' | 'offerPrice' | 'offerEndsAt' | 'stock' | 'image' | 'images' | 'description' | 'variants' | 'variantStock' | 'createdAt'> & { wholesale?: boolean }
+export type PublicProduct = Pick<Product, 'id' | 'slug' | 'name' | 'category' | 'subcategory' | 'price' | 'offerPrice' | 'offerEndsAt' | 'stock' | 'image' | 'images' | 'description' | 'variants' | 'variantStock' | 'createdAt'> & { wholesale?: boolean; promotionLabel?: string }
 
 export interface SaleItem {
   productId: string
@@ -63,6 +65,9 @@ export interface Sale {
   note?: string | null
   seller?: string | null
   stockApplied?: boolean
+  packed?: boolean
+  paid?: boolean
+  delivered?: boolean
   mpPaymentId?: string | null
   couponCode?: string | null
 }
@@ -140,7 +145,19 @@ export interface ShippingOption {
 }
 export interface Parcel { originZip: string; baseWeightG: number; itemWeightG: number; lengthCm: number; widthCm: number; heightCm: number }
 
+export interface Promotion {
+  id: string; name: string; type: 'pct' | '2x1'; value: number; active: boolean
+  category?: string; productIds?: string[]; startsAt?: string | null; endsAt?: string | null; roundTo?: number
+}
 export interface Settings {
+  attributes?: AttributeDefinition[]
+  categories?: import('@/data/categories').Category[]
+  materials?: string[]
+  banners?: { image: string; href: string; alt: string }[]
+  homeTitle?: string
+  mobileCategoryColumns?: number
+  desktopCategoryColumns?: number
+  promotions?: Promotion[]
   storeName: string
   defaultMarkup: number     // % de ganancia sobre el costo para sugerir precio
   roundTo: number           // redondeo de precio sugerido

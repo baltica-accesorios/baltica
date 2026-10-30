@@ -2,10 +2,11 @@
 import { z } from 'zod'
 import { and, eq, inArray } from 'drizzle-orm'
 import { db, schema } from '@/db'
-import { getSettings } from '@/lib/data'
+import { promotionalProduct, twoForOneDiscount } from '@/lib/promotions'
+import { getSettings, toProduct } from '@/lib/data'
 import { createSale, StockError } from '@/lib/stock'
 import { createPreference, mpEnabled } from '@/lib/mercadopago'
-import { currentPrice } from '@/lib/pricing'
+import { variantPrice } from '@/lib/variants'
 import { currentCustomer } from '@/lib/customer-auth'
 import { quoteShipping } from '@/lib/shipping'
 import { orderEmails } from '@/lib/order-emails'
@@ -57,16 +58,17 @@ export async function checkout(raw: z.input<typeof Input>): Promise<CheckoutResu
     const label = `"${p.name}"${hasVariants ? ` (${l.variant})` : ''}`
     if (avail < wanted) return { ok: false, error: avail ? `De ${label} quedan sólo ${avail}.` : `${label} se quedó sin stock.` }
   }
-  const items = lines.map(l => { const p = byId.get(l.productId)!; return { productId: p.id, qty: l.qty, unitPrice: me?.wholesale && p.wholesalePrice ? p.wholesalePrice : currentPrice(p), variant: l.variant ?? null, name: p.name, image: p.image } })
+  const items = lines.map(l => { const p = byId.get(l.productId)!; return { productId: p.id, qty: l.qty, unitPrice: me?.wholesale && p.wholesalePrice ? p.wholesalePrice : variantPrice(promotionalProduct(toProduct(p), settings.promotions ?? []), l.variant), variant: l.variant ?? null, name: p.name, image: p.image } })
   const subtotal = items.reduce((a, i) => a + i.qty * i.unitPrice, 0)
+  const promotionDiscount = twoForOneDiscount(items.map(i => ({ productId: i.productId, category: byId.get(i.productId)!.category, qty: i.qty, price: i.unitPrice })), settings.promotions ?? [])
   let couponDiscount = 0, freeShipping = false, couponCode: string | null = null
   if (coupon?.trim()) {
-    const c = await checkCoupon(coupon, subtotal)
+    const c = await checkCoupon(coupon, subtotal - promotionDiscount)
     if (!c.ok) return { ok: false, error: `Cupón: ${c.error}` }
     couponDiscount = c.discount; freeShipping = c.freeShipping; couponCode = c.code
   }
-  const transferDiscount = payment === 'transferencia' ? Math.round((subtotal - couponDiscount) * settings.transferDiscountPct / 100) : 0
-  const discount = couponDiscount + transferDiscount
+  const transferDiscount = payment === 'transferencia' ? Math.round((subtotal - promotionDiscount - couponDiscount) * settings.transferDiscountPct / 100) : 0
+  const discount = promotionDiscount + couponDiscount + transferDiscount
   const shippingCost = freeShipping ? 0 : ship.price
 
   // Guardamos al cliente para tener su historial (el email identifica)
@@ -104,4 +106,17 @@ export async function previewCoupon(code: string, subtotal: number) {
 /** Opciones y precios de envío para un código postal (carrito, checkout y ficha de producto) */
 export async function getShippingQuotes(zip: string, units: number) {
   return quoteShipping(String(zip).slice(0, 10), Math.max(1, Math.min(200, Math.round(units) || 1)))
+}
+
+export async function previewCart(lines: { productId: string; qty: number; variant?: string }[]) {
+  const checked = z.array(z.object({ productId: z.string(), qty: z.number().int().min(1).max(50), variant: z.string().optional() })).max(50).parse(lines)
+  if (!checked.length) return { subtotal: 0, promotionDiscount: 0 }
+  const settings = await getSettings(), me = await currentCustomer()
+  const rows = await db.select().from(schema.products).where(and(inArray(schema.products.id, checked.map(l => l.productId)), eq(schema.products.active, true), eq(schema.products.deleted, false)))
+  const priced = checked.map(l => {
+    const p = rows.find(p => p.id === l.productId)
+    if (!p) throw new Error('Un producto ya no está disponible')
+    return { ...l, category: p.category, price: me?.wholesale && p.wholesalePrice ? p.wholesalePrice : variantPrice(promotionalProduct(toProduct(p), settings.promotions ?? []), l.variant) }
+  })
+  return { subtotal: priced.reduce((s, l) => s + l.price * l.qty, 0), promotionDiscount: twoForOneDiscount(priced, settings.promotions ?? []) }
 }

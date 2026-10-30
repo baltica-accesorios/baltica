@@ -58,6 +58,9 @@ export const sales = pgTable('sales', {
   seller: text('seller'),
   // true cuando la venta ya descontó stock (mostrador: al cobrar; online: al confirmarse el pago)
   stockApplied: boolean('stock_applied').notNull().default(false),
+  paid: boolean('paid').notNull().default(false),
+  packed: boolean('packed').notNull().default(false),
+  delivered: boolean('delivered').notNull().default(false),
   couponCode: text('coupon_code'),
   mpPreferenceId: text('mp_preference_id'),
   mpPaymentId: text('mp_payment_id'),
@@ -192,4 +195,11 @@ export const coupons = pgTable('coupons', {
   uses: integer('uses').notNull().default(0),
   active: boolean('active').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+export const apiTokens = pgTable('api_tokens', {
+  id: text('id').primaryKey(), name: text('name').notNull(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
 })

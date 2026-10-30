@@ -4,7 +4,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGri
 import { useAdmin } from '../context'
 import type { Sale } from '@/lib/types'
 import { PageHeader, Card, Stat } from '../components/AdminLayout'
-import { net, inRange, summary, byDay, topProducts, byCategory, byWeekday, byHour, byPayment } from '@/lib/metrics'
+import { filterSalesCategory, net, inRange, summary, byDay, topProducts, byCategory, byWeekday, byHour, byPayment } from '@/lib/metrics'
 import { money, moneyShort, pct } from '@/lib/format'
 import { categoryName } from '@/data/categories'
 
@@ -12,15 +12,17 @@ const COLORS = ['#1c1917', '#d97706', '#78716c', '#f59e0b', '#a8a29e', '#fbbf24'
 
 export function Stats({ sales }: { sales: Sale[] }) {
   const { products } = useAdmin()
+  const [category, setCategory] = useState('')
+  const scoped = useMemo(() => filterSalesCategory(sales, products, category), [sales, products, category])
   const [days, setDays] = useState(30)
   const now = new Date()
   const from = useMemo(() => { const d = new Date(now); d.setDate(now.getDate() - (days - 1)); d.setHours(0, 0, 0, 0); return d }, [days])
-  const cur = useMemo(() => inRange(sales, from, now), [sales, from])
+  const cur = useMemo(() => inRange(scoped, from, now), [scoped, from])
   const prevFrom = new Date(from); prevFrom.setDate(from.getDate() - days)
-  const prev = useMemo(() => inRange(sales, prevFrom, from), [sales, from, days])
+  const prev = useMemo(() => inRange(scoped, prevFrom, from), [scoped, from, days])
   const s = summary(cur), ps = summary(prev)
   const d = (a: number, b: number) => b ? (a - b) / b : 0
-  const series = byDay(sales, days)
+  const series = byDay(scoped, days)
   const top = topProducts(cur, products, 10)
   const cats = byCategory(cur, products)
   const wd = byWeekday(cur)
@@ -33,7 +35,7 @@ export function Stats({ sales }: { sales: Sale[] }) {
   return (
     <>
       <PageHeader title="Estadísticas" subtitle="Todo lo que necesitás saber del negocio, comparado con el período anterior.">
-        <div className="flex bg-white border rounded-lg overflow-hidden">{[7, 30, 90].map(n => <button key={n} onClick={() => setDays(n)} className={`px-3 py-1.5 text-sm ${days === n ? 'bg-stone-900 text-white' : ''}`}>{n} días</button>)}</div>
+        <select aria-label="Categoría de estadísticas" className="border rounded-lg px-3" value={category} onChange={e => setCategory(e.target.value)}><option value="">Todas las categorías</option>{[...new Set(products.map(p => p.category))].sort().map(c => <option key={c} value={c}>{categoryName(c)}</option>)}</select><div className="flex bg-white border rounded-lg overflow-hidden">{[7, 30, 90].map(n => <button key={n} onClick={() => setDays(n)} className={`px-3 py-1.5 text-sm ${days === n ? 'bg-stone-900 text-white' : ''}`}>{n} días</button>)}</div>
       </PageHeader>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
         <Stat label="Ventas totales" value={moneyShort(s.revenue)} sub={`${d(s.revenue, ps.revenue) >= 0 ? '▲' : '▼'} ${pct(Math.abs(d(s.revenue, ps.revenue)))} vs. anterior`} tone={d(s.revenue, ps.revenue) >= 0 ? 'good' : 'bad'} />

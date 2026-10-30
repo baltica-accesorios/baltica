@@ -74,3 +74,15 @@ export function reorderQty(p: Product, sales: Sale[], days = 30) {
   if (!rate) return 0
   return Math.max(0, Math.ceil(rate * days) + 2 - p.stock)
 }
+
+export function filterSalesCategory(sales: Sale[], products: Product[], category: string): Sale[] {
+  if (!category) return sales
+  const ids = new Set(products.filter(p => p.category === category).map(p => p.id))
+  return sales.flatMap(s => {
+    const items = s.items.filter(i => ids.has(i.productId))
+    if (!items.length) return []
+    const subtotal = items.reduce((sum, i) => sum + i.qty * i.unitPrice, 0)
+    const discount = s.subtotal ? s.discount * subtotal / s.subtotal : 0
+    return [{ ...s, items, subtotal, discount, shipping: 0, total: subtotal - discount }]
+  })
+}

@@ -3,6 +3,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { Info, Truck } from 'lucide-react'
 import { categoryName, subcategoryName } from '@/data/categories'
+import { variantPrice, variantImages, attributesOf, valuesForVariant, optionVariant, variantAvailable } from '@/lib/variants'
 import { money } from '@/lib/format'
 import type { PublicProduct } from '@/lib/types'
 import type { Quote } from '@/lib/shipping'
@@ -11,16 +12,16 @@ import { useCart, variantStockOf } from '../cart'
 import { Price } from '../components/ProductCard'
 import { offerEndLabel, offerPct } from '@/lib/pricing'
 
-export function ProductPage({ p, shipping }: { p: PublicProduct; shipping: Quote[] }) {
+export function ProductPage({ p, shipping, initialVariant }: { p: PublicProduct; shipping: Quote[]; initialVariant?: string }) {
   const [zip, setZip] = useState('')
   const [quotes, setQuotes] = useState<Quote[] | null>(null)
   const [quoting, setQuoting] = useState(false)
   const calc = async () => { if (!/\d{4}/.test(zip)) return; setQuoting(true); setQuotes(await getShippingQuotes(zip, qty)); setQuoting(false) }
   const add = useCart(s => s.add)
   // Arranca en el primer talle con stock
-  const [variant, setVariant] = useState<string | undefined>(p.variants?.options.find(o => variantStockOf(p, o) > 0) ?? p.variants?.options[0])
+  const [variant, setVariant] = useState<string | undefined>(initialVariant && variantAvailable(p, initialVariant) ? initialVariant : p.variants?.options.find(o => variantStockOf(p, o) > 0) ?? p.variants?.options[0])
   const [qty, setQty] = useState(1)
-  const imgs = p.images?.length ? p.images : [p.image]
+  const imgs = variantImages(p, variant)
   const [img, setImg] = useState(0)
   const avail = variantStockOf(p, variant)
   const out = p.stock <= 0 || avail <= 0
@@ -35,16 +36,19 @@ export function ProductPage({ p, shipping }: { p: PublicProduct; shipping: Quote
       <div className="sf-product">
         <div className="sf-gallery">
           {imgs.length > 1 && <div className="thumbs">{imgs.map((im, i) => <img key={i} src={im} className={i === img ? 'on' : ''} alt="" onClick={() => setImg(i)} />)}</div>}
-          <div className="main"><img src={imgs[img]} alt={p.name} /></div>
+          <div className="main"><img src={imgs[img] ?? imgs[0]} alt={p.name} /></div>
         </div>
         <div>
-          <h1>{p.name}</h1>
-          <p className="price"><Price p={p} />{p.wholesale && <span className="sf-wholesale-tag">PRECIO MAYORISTA</span>}</p>
+          <h1>{p.name}</h1>{p.promotionLabel && <p className="sf-off">Promoción {p.promotionLabel} · se aplica al finalizar la compra</p>}
+          <p className="price">{money(variantPrice(p, variant))}{p.wholesale && <span className="sf-wholesale-tag">PRECIO MAYORISTA</span>}</p>
           {offerPct(p) > 0 && <span className="sf-off">{offerPct(p)}% OFF{p.offerEndsAt ? ` hasta el ${offerEndLabel(p.offerEndsAt)} hs` : ''}</span>}
-          {p.variants && p.variants.options.length > 0 && <>
-            <p className="lbl">{p.variants.attr}</p>
-            <div className="opts">{p.variants.options.map(o => { const none = variantStockOf(p, o) <= 0; return <button key={o} className={'sf-opt' + (variant === o ? ' on' : '') + (none ? ' none' : '')} title={none ? 'Sin stock' : undefined} onClick={() => { setVariant(o); setQty(1) }}>{o}</button> })}</div>
-          </>}
+          {attributesOf(p.variants).map((a, index) => <div key={a.attr}><p className="lbl">{a.attr}</p><div className="opts">{a.options.map(option => {
+            const next = optionVariant(p, variant, index, option)
+            const selected = !!variant && valuesForVariant(p.variants!, variant)[index] === option
+            return <button key={option} disabled={!next} aria-pressed={selected} title={!next ? `${option}: sin stock` : option} className={'sf-opt' + (selected ? ' on' : '') + (!next ? ' none' : '')} onClick={() => { setVariant(next); setQty(1); setImg(0) }}>
+              {a.type === 'color' && a.colors?.[option] && <span className="sf-swatch" style={{ backgroundColor: a.colors[option] }} />}{option}
+            </button>
+          })}</div></div>)}
           <p className="lbl">Cantidad</p>
           <div className="sf-qty">
             <button aria-label="Quitar uno" onClick={() => setQty(Math.max(1, qty - 1))}>−</button>

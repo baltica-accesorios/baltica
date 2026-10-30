@@ -6,7 +6,7 @@ import { money } from '@/lib/format'
 import type { Quote } from '@/lib/shipping'
 import { useCart } from '../cart'
 import { useMounted } from '../components/Layout'
-import { checkout, getShippingQuotes, previewCoupon } from '../checkout-action'
+import { previewCart, checkout, getShippingQuotes, previewCoupon } from '../checkout-action'
 
 type Pay = 'mercadopago' | 'transferencia' | 'efectivo'
 
@@ -42,12 +42,16 @@ export function Checkout({ shipping, transferPct, mpEnabled, cashOnPickup, me }:
   }, [zip4, units])
   // Si cambia el envío y el medio elegido deja de valer (efectivo sólo al retirar), se usa el primero disponible
   const payment: Pay = chosen === 'efectivo' && !(cashOnPickup && shipId === 'retiro') ? (mpEnabled ? 'mercadopago' : 'transferencia') : chosen
-  const subtotal = lines.reduce((a, l) => a + l.qty * l.price, 0)
+  const [cartQuote, setCartQuote] = useState<{ subtotal: number; promotionDiscount: number } | null>(null)
+  const [quoteError, setQuoteError] = useState('')
+  useEffect(() => { let cancelled = false; setCartQuote(null); setCoupon(null); setQuoteError(''); previewCart(lines.map(l => ({ productId: l.productId, qty: l.qty, variant: l.variant }))).then(q => { if (!cancelled) setCartQuote(q) }).catch(() => { if (!cancelled) setQuoteError('No pudimos actualizar el carrito. Recargá la página.') }); return () => { cancelled = true } }, [lines])
+  const promotionDiscount = cartQuote?.promotionDiscount ?? 0
+  const subtotal = cartQuote?.subtotal ?? lines.reduce((a, l) => a + l.qty * l.price, 0)
   const couponDiscount = coupon?.discount ?? 0
-  const discount = payment === 'transferencia' ? Math.round((subtotal - couponDiscount) * transferPct / 100) : 0
+  const discount = payment === 'transferencia' ? Math.round((subtotal - promotionDiscount - couponDiscount) * transferPct / 100) : 0
   const shipCost = coupon?.freeShipping ? 0 : ship?.price ?? 0
-  const total = subtotal - couponDiscount - discount + shipCost
-  const applyCoupon = async () => { setCouponMsg(''); const r = await previewCoupon(couponInput, subtotal); if (r.ok) setCoupon(r); else { setCoupon(null); setCouponMsg(r.error) } }
+  const total = subtotal - promotionDiscount - couponDiscount - discount + shipCost
+  const applyCoupon = async () => { setCouponMsg(''); const r = await previewCoupon(couponInput, subtotal - promotionDiscount); if (r.ok) setCoupon(r); else { setCoupon(null); setCouponMsg(r.error) } }
   const pays: { id: Pay; label: string; desc: string }[] = [
     ...(mpEnabled ? [{ id: 'mercadopago' as Pay, label: 'Mercado Pago', desc: 'Tarjeta de crédito, débito, dinero en cuenta o cuotas. Pagás en Mercado Pago y volvés a la tienda.' }] : []),
     { id: 'transferencia', label: `Transferencia bancaria${transferPct ? ` · ${transferPct}% OFF` : ''}`, desc: 'Al confirmar te mostramos los datos para transferir.' },
@@ -102,12 +106,12 @@ export function Checkout({ shipping, transferPct, mpEnabled, cashOnPickup, me }:
             </label>
           ))}
           {err && <div className="sf-error" role="alert">{err}</div>}
-          <button className="sf-btn lg" style={{ marginTop: 14 }} disabled={pending}>{pending ? 'Procesando…' : payment === 'mercadopago' ? `Pagar con Mercado Pago · ${money(total)}` : `Confirmar pedido · ${money(total)}`}</button>
+          <button className="sf-btn lg" style={{ marginTop: 14 }} disabled={pending || !cartQuote || !!quoteError}>{pending ? 'Procesando…' : payment === 'mercadopago' ? `Pagar con Mercado Pago · ${money(total)}` : `Confirmar pedido · ${money(total)}`}</button>
         </div>
         <div className="summary">
           {lines.map(l => <div key={l.productId + l.variant} className="sf-row"><span>{l.qty} × {l.name}{l.variant ? ` (${l.variant})` : ''}</span><span>{money(l.qty * l.price)}</span></div>)}
           <div className="sf-row"><span>Subtotal</span><span>{money(subtotal)}</span></div>
-          <div className="sf-coupon">
+          {promotionDiscount > 0 && <div className="sf-row"><span>Promoción 2×1</span><span>−{money(promotionDiscount)}</span></div>}{quoteError && <p role="alert">{quoteError}</p>}<div className="sf-coupon">
             {coupon ? <div className="sf-row" style={{ color: '#2a7' }}><span>Cupón {coupon.code} · {coupon.label} <button type="button" className="link" onClick={() => setCoupon(null)}>quitar</button></span><span>{couponDiscount ? `−${money(couponDiscount)}` : ''}</span></div>
               : <div style={{ display: 'flex', gap: 8, padding: '10px 0' }}><input className="sf-input" style={{ margin: 0, height: 40 }} placeholder="¿Tenés un cupón de descuento?" value={couponInput} onChange={e => setCouponInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); applyCoupon() } }} aria-label="Cupón" /><button type="button" className="sf-btn ghost" style={{ height: 40 }} disabled={!couponInput.trim()} onClick={applyCoupon}>Aplicar</button></div>}
             {couponMsg && <div style={{ color: '#a00', fontSize: 13, paddingBottom: 6 }}>{couponMsg}</div>}

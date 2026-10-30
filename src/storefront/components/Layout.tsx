@@ -7,7 +7,7 @@ import { CATEGORIES, INFO_PAGES, LOGO } from '@/data/categories'
 import { useCart } from '../cart'
 import { CartDrawer } from './CartDrawer'
 
-export interface StoreContact { whatsapp: string; email: string; instagram: string; mpEnabled: boolean; announcement: string }
+export interface StoreContact { whatsapp: string; email: string; instagram: string; mpEnabled: boolean; announcement: string; categories?: typeof CATEGORIES; storeName?: string }
 
 export function useMounted() {
   const [m, setM] = useState(false)
@@ -47,7 +47,7 @@ export function StoreLayout({ contact, children }: { contact: StoreContact; chil
                 <button>Productos <ChevronDown size={16} /></button>
                 <div className="dd-menu">
                   <Link href="/productos">Productos <span style={{ fontWeight: 300 }}>(Ver todo)</span></Link>
-                  {CATEGORIES.map(c => (
+                  {(contact.categories ?? CATEGORIES).map(c => (
                     <div key={c.slug}>
                       <Link href={`/${c.slug}`} className="grp">{c.name}</Link>
                       {c.children?.map(s => <Link key={s.slug} href={`/${c.slug}/${s.slug}`} className="sub">{s.name}</Link>)}
@@ -84,7 +84,7 @@ export function StoreLayout({ contact, children }: { contact: StoreContact; chil
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}><img src={LOGO} alt="" style={{ height: 50 }} /><button aria-label="Cerrar menú" onClick={() => setMenuOpen(false)} style={{ background: 'none', border: 0 }}><X /></button></div>
           <Link href="/">Inicio</Link>
           <Link href="/productos">Productos</Link>
-          {CATEGORIES.map(c => <Link key={c.slug} href={`/${c.slug}`} style={{ paddingLeft: 16, fontWeight: 400 }}>{c.name}</Link>)}
+          {(contact.categories ?? CATEGORIES).map(c => <Link key={c.slug} href={`/${c.slug}`} style={{ paddingLeft: 16, fontWeight: 400 }}>{c.name}</Link>)}
           {INFO_PAGES.map(p => <Link key={p.slug} href={`/${p.slug}`}>{p.name}</Link>)}
           <Link href="/contacto">Contacto</Link>
         </div>
@@ -108,7 +108,7 @@ export function StoreLayout({ contact, children }: { contact: StoreContact; chil
             <div><h4>Nuestras redes sociales</h4><a href={contact.instagram} target="_blank" rel="noreferrer" aria-label="Instagram"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor"/></svg></a></div>
             <div><h4>Contacto</h4><div className="contact">{contact.email}<br />{phone}<br /><Link href="/arrepentimiento" style={{ textDecoration: 'underline' }}>Botón de arrepentimiento</Link></div></div>
           </div>
-          <div className="bottom">© {new Date().getFullYear()} Báltica Accesorios</div>
+          <div className="bottom">© {new Date().getFullYear()} {contact.storeName || 'Báltica Accesorios'}</div>
         </div>
       </footer>
 

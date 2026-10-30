@@ -1,7 +1,16 @@
+import { BANNERS, CATEGORIES } from '@/data/categories'
 import type { LabelTemplate, Settings } from './types'
 
 export const DEFAULT_SETTINGS: Settings = {
   storeName: 'Báltica Accesorios',
+  attributes: [],
+  categories: CATEGORIES,
+  materials: ['plata', 'acero quirúrgico', 'acero blanco', 'acero dorado'],
+  banners: BANNERS.map(image => ({ image, href: '/grabados', alt: 'Báltica Accesorios' })),
+  homeTitle: 'Ingresos',
+  mobileCategoryColumns: 2,
+  desktopCategoryColumns: 3,
+  promotions: [],
   defaultMarkup: 120,
   roundTo: 100,
   lowStockThreshold: 2,

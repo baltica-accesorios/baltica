@@ -4,6 +4,7 @@ import { Camera, Search, Trash2, Check, Banknote, Landmark, CreditCard, QrCode, 
 import { useAdmin } from '../context'
 import { registerLocalSale } from '../actions'
 import { findProduct, byCode } from '@/lib/search'
+import { variantPrice } from '@/lib/variants'
 import { currentPrice } from '@/lib/pricing'
 import { useKeyboardWedge, CameraScanner } from '../components/Scanner'
 import { PageHeader, Card, Hint, btnPrimary, btnGhost, input } from '../components/AdminLayout'
@@ -45,7 +46,7 @@ export function POS() {
     if (inCart + 1 > avail) { setFlash({ ok: false, msg: `Sin stock de "${p.name}"${vs ? ` (${variant})` : ''} (quedan ${avail})` }); return }
     setFlash({ ok: true, msg: `+1 ${p.name}${vs ? ` (${variant})` : ''}` })
     if (i >= 0) { const c = [...ls]; c[i] = { ...c[i], qty: c[i].qty + 1 }; setLines(c) }
-    else setLines([...ls, { productId: p.id, name: p.name, qty: 1, unitPrice: currentPrice(p), unitCost: p.cost, variant, image: p.image, stock: avail }])
+    else setLines([...ls, { productId: p.id, name: p.name, qty: 1, unitPrice: variantPrice(p, variant), unitCost: p.cost, variant, image: (variant && p.variants?.details?.[variant]?.image) || p.image, stock: avail }])
     setQ('')
   }, [products])
 
@@ -124,7 +125,7 @@ export function POS() {
                 <thead className="text-xs text-stone-500 uppercase"><tr><th className="text-left pb-2">Producto</th><th className="pb-2">Cant.</th><th className="text-right pb-2">Precio</th><th className="text-right pb-2">Total</th><th /></tr></thead>
                 <tbody className="divide-y">{lines.map((l, i) => (
                   <tr key={i}>
-                    <td className="py-2"><div className="flex items-center gap-3"><img src={l.image} className="w-10 h-10 rounded object-cover" alt="" /><div><div>{l.name}</div>{l.variant && (() => { const vp = products.find(p => p.id === l.productId); const vs = vp?.variantStock; return <select className="text-xs text-stone-600 bg-stone-50 border rounded px-1 mt-0.5" value={l.variant} aria-label="Talle" onChange={e => { const v = e.target.value; const st = vs ? vs[v] ?? 0 : vp?.stock ?? 0; setLines(ls => ls.map((x, k) => k === i ? { ...x, variant: v, stock: st, qty: Math.max(1, Math.min(x.qty, st)) } : x)) }}>{vp?.variants?.options.map(o => <option key={o} value={o} disabled={!!vs && (vs[o] ?? 0) <= 0}>{o}{vs ? ` (${vs[o] ?? 0})` : ''}</option>)}</select> })()}</div></div></td>
+                    <td className="py-2"><div className="flex items-center gap-3"><img src={l.image} className="w-10 h-10 rounded object-cover" alt="" /><div><div>{l.name}</div>{l.variant && (() => { const vp = products.find(p => p.id === l.productId); const vs = vp?.variantStock; return <select className="text-xs text-stone-600 bg-stone-50 border rounded px-1 mt-0.5" value={l.variant} aria-label="Talle" onChange={e => { const v = e.target.value; const st = vs ? vs[v] ?? 0 : vp?.stock ?? 0; setLines(ls => ls.map((x, k) => k === i ? { ...x, variant: v, unitPrice: vp ? variantPrice(vp, v) : x.unitPrice, image: vp?.variants?.details?.[v]?.image || vp?.image || x.image, stock: st, qty: Math.max(1, Math.min(x.qty, st)) } : x)) }}>{vp?.variants?.options.map(o => <option key={o} value={o} disabled={!!vs && (vs[o] ?? 0) <= 0}>{o}{vs ? ` (${vs[o] ?? 0})` : ''}</option>)}</select> })()}</div></div></td>
                     <td className="py-2 text-center"><div className="inline-flex items-center border rounded-lg"><button className="px-2 py-1" onClick={() => setLines(ls => ls.map((x, k) => k === i ? { ...x, qty: x.qty - 1 } : x).filter(x => x.qty > 0))}>−</button><span className="px-2 font-medium">{l.qty}</span><button className="px-2 py-1" disabled={l.qty >= l.stock} onClick={() => setLines(ls => ls.map((x, k) => k === i ? { ...x, qty: Math.min(x.stock, x.qty + 1) } : x))}>+</button></div></td>
                     <td className="py-2 text-right"><input className="w-24 text-right border rounded px-2 py-1" value={l.unitPrice} onChange={e => setLines(ls => ls.map((x, k) => k === i ? { ...x, unitPrice: Number(e.target.value) || 0 } : x))} /></td>
                     <td className="py-2 text-right font-medium">{moneyShort(l.qty * l.unitPrice)}</td>

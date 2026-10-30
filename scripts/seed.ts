@@ -34,7 +34,7 @@ async function main() {
     for (const s of sales) {
       const [row] = await db.insert(schema.sales).values({
         channel: s.channel, createdAt: new Date(s.createdAt), subtotal: s.subtotal, discount: s.discount, total: s.total,
-        payment: s.payment, status: s.status, customer: s.customer ?? null, seller: s.seller ?? null, stockApplied: s.status !== 'pendiente',
+        payment: s.payment, status: s.status, paid: ['pagada', 'enviada', 'entregada'].includes(s.status), delivered: s.status === 'entregada', customer: s.customer ?? null, seller: s.seller ?? null, stockApplied: s.status !== 'pendiente',
       }).returning({ number: schema.sales.number })
       await db.insert(schema.saleItems).values(s.items.map(i => ({ saleNumber: row.number, productId: i.productId, name: i.name, qty: i.qty, unitPrice: i.unitPrice, unitCost: i.unitCost, variant: i.variant ?? null })))
       await db.insert(schema.stockMovements).values(s.items.map(i => ({ productId: i.productId, delta: -i.qty, reason: s.channel === 'local' ? 'venta_local' : 'venta_online', ref: 's' + row.number, by: s.seller ?? 'tienda online', createdAt: new Date(s.createdAt) })))

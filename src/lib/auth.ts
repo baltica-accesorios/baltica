@@ -1,3 +1,4 @@
+import { apiIdentity } from './api-auth'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createHash, randomBytes, scrypt, timingSafeEqual } from 'node:crypto'
@@ -52,7 +53,7 @@ export async function currentUser(): Promise<User | null> {
 
 /** Para páginas y acciones del panel. Sin sesión manda al login; con rol insuficiente, al mostrador. */
 export async function requireUser(role?: 'duena') {
-  const u = await currentUser()
+  const u = apiIdentity.getStore() ?? await currentUser()
   if (!u) redirect('/admin/login')
   if (role && u.role !== role) redirect('/admin/pos')
   return u
